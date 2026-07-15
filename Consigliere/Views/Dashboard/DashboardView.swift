@@ -28,7 +28,7 @@ struct DashboardView: View {
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationBarHidden(true)
-            .refreshable { await appState.load() }
+            .refreshable { await appState.load(force: true) }
             .overlay { if appState.isLoading { ProgressView().controlSize(.large) } }
             .navigationDestination(for: MarketInstrument.self) { InstrumentDetailView(instrument: $0) }
             .navigationDestination(for: MarketEvent.self) { EventDetailView(event: $0) }

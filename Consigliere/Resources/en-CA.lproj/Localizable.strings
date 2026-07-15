@@ -161,3 +161,5 @@
 "model.methodology" = "Construction methodology";
 "model.notETF" = "This is a hypothetical model portfolio, not an ETF or investable fund.";
 "model.lookAhead" = "Weights are estimates because disclosures report value ranges rather than exact share quantities. Options are represented by their underlying securities.";
+"disclosures.loadError" = "Disclosures could not be refreshed.";
+"common.retry" = "Retry";

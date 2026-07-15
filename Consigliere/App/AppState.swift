@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
     @Published private(set) var politicians: [Politician] = []
     @Published private(set) var disclosures: [DisclosureTrade] = []
     @Published private(set) var modelPortfolios: [PoliticianModelPortfolio] = []
+    @Published private(set) var disclosureLoadError: String?
     @Published var isLoading = false
     @Published var selectedRegion: MarketRegion = .northAmerica
 
@@ -43,25 +44,29 @@ final class AppState: ObservableObject {
         AnalysisEngine.summarize(holdings: holdings, instruments: instruments)
     }
 
-    func load() async {
-        guard instruments.isEmpty else { return }
+    func load(force: Bool = false) async {
+        guard !isLoading else { return }
+        guard force || instruments.isEmpty || disclosures.isEmpty else { return }
         isLoading = true
         defer { isLoading = false }
+        disclosureLoadError = nil
+
+        async let loadedInstruments = provider.instruments()
+        async let loadedEvents = provider.events()
+        async let loadedHoldings = provider.holdings()
+        async let loadedPoliticians = provider.politicians()
+        async let loadedDisclosures = provider.disclosures()
+        async let loadedModelPortfolios = provider.modelPortfolios()
+
+        if let value = try? await loadedInstruments { instruments = value }
+        if let value = try? await loadedEvents { events = value.sorted { $0.publishedAt > $1.publishedAt } }
+        if let value = try? await loadedHoldings { holdings = value }
+        if let value = try? await loadedPoliticians { politicians = value }
+        if let value = try? await loadedModelPortfolios { modelPortfolios = value }
         do {
-            async let loadedInstruments = provider.instruments()
-            async let loadedEvents = provider.events()
-            async let loadedHoldings = provider.holdings()
-            async let loadedPoliticians = provider.politicians()
-            async let loadedDisclosures = provider.disclosures()
-            async let loadedModelPortfolios = provider.modelPortfolios()
-            instruments = try await loadedInstruments
-            events = try await loadedEvents.sorted { $0.publishedAt > $1.publishedAt }
-            holdings = try await loadedHoldings
-            politicians = try await loadedPoliticians
             disclosures = try await loadedDisclosures
-            modelPortfolios = try await loadedModelPortfolios
         } catch {
-            // A production client exposes provider health and recovery actions here.
+            disclosureLoadError = error.localizedDescription
         }
     }
 

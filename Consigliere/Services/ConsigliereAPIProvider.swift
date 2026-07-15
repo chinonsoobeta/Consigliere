@@ -135,13 +135,37 @@ struct PoliticianIdentityResolver {
         if let providerID, IDs.contains(providerID) { return providerID }
         let normalized = Self.normalize(name)
         if let exact = exactMatches[normalized] { return exact.id }
-        let components = normalized.split(separator: " ")
-        guard let firstInitial = components.first?.first, let surname = components.last else { return nil }
+        let components = Self.identityComponents(normalized)
+        guard let givenName = components.first, let surname = components.last else { return nil }
+        let givenAndSurnameMatches = politicians.filter {
+            let candidate = Self.identityComponents(Self.normalize($0.name))
+            guard let candidateGivenName = candidate.first, candidate.last == surname else { return false }
+            return Self.canonicalGivenName(String(candidateGivenName)) == Self.canonicalGivenName(String(givenName))
+        }
+        if givenAndSurnameMatches.count == 1 { return givenAndSurnameMatches[0].id }
+
+        guard let firstInitial = givenName.first else { return nil }
         let candidates = politicians.filter {
-            let candidate = Self.normalize($0.name).split(separator: " ")
+            let candidate = Self.identityComponents(Self.normalize($0.name))
             return candidate.first?.first == firstInitial && candidate.last == surname
         }
         return candidates.count == 1 ? candidates[0].id : nil
+    }
+
+    private static func identityComponents(_ normalizedName: String) -> [Substring] {
+        let ignored: Set<Substring> = ["dr", "jr", "sr", "ii", "iii", "iv"]
+        return normalizedName.split(separator: " ").filter { !ignored.contains($0) }
+    }
+
+    private static func canonicalGivenName(_ value: String) -> String {
+        let aliases = [
+            "bill": "william", "bob": "robert", "chris": "christopher", "chuck": "charles",
+            "dan": "daniel", "don": "donald", "ed": "edward", "jack": "john",
+            "jim": "james", "joe": "joseph", "ken": "kenneth", "matt": "matthew",
+            "mike": "michael", "rick": "richard", "ron": "ronald", "tom": "thomas",
+            "val": "valerie"
+        ]
+        return aliases[value] ?? value
     }
 
     private static func normalize(_ value: String) -> String {

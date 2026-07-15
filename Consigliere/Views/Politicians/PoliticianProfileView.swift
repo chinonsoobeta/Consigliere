@@ -14,6 +14,7 @@ struct PoliticianProfileView: View {
             VStack(alignment: .leading, spacing: 22) {
                 profileHeader
                 DisclosureMethodologyBanner()
+                if appState.disclosureLoadError != nil { disclosureErrorView }
                 coverageSection
                 modelPortfolioSection
                 tradesSection
@@ -24,6 +25,18 @@ struct PoliticianProfileView: View {
         .navigationTitle(politician.name)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: DisclosureTrade.self) { TradeEventStudyView(trade: $0, politician: politician) }
+        .refreshable { await appState.load(force: true) }
+    }
+
+    private var disclosureErrorView: some View {
+        HStack {
+            Label("disclosures.loadError", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline).foregroundStyle(.orange)
+            Spacer()
+            Button("common.retry") { Task { await appState.load(force: true) } }
+                .buttonStyle(.bordered)
+        }
+        .consigliereCard()
     }
 
     private var profileHeader: some View {

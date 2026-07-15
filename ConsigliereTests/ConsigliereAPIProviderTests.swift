@@ -45,4 +45,19 @@ final class ConsigliereAPIProviderTests: XCTestCase {
         XCTAssertEqual(resolver.resolve(providerID: nil, name: "Hon. Nancy Pelosi"), "P000197")
         XCTAssertEqual(resolver.resolve(providerID: nil, name: "Pelosi, Nancy"), "P000197")
     }
+
+    func testResolvesProviderNamesWithMiddleNamesSuffixesAndCommonAliases() {
+        let politicians = [
+            Politician(id: "C001123", name: "Gilbert Ray Cisneros", party: "Democrat", state: "California", district: 31, chamber: .house, imageURL: nil, serviceStart: 2025),
+            Politician(id: "V000139", name: "Matt Van Epps", party: "Republican", state: "Tennessee", district: 7, chamber: .house, imageURL: nil, serviceStart: 2025),
+            Politician(id: "A000372", name: "Rick W. Allen", party: "Republican", state: "Georgia", district: 12, chamber: .house, imageURL: nil, serviceStart: 2015),
+            Politician(id: "K000398", name: "Thomas H. Kean", party: "Republican", state: "New Jersey", district: 7, chamber: .house, imageURL: nil, serviceStart: 2023)
+        ]
+        let resolver = PoliticianIdentityResolver(politicians: politicians)
+
+        XCTAssertEqual(resolver.resolve(providerID: nil, name: "Gilbert Cisneros"), "C001123")
+        XCTAssertEqual(resolver.resolve(providerID: nil, name: "Matthew Robert Van Epps"), "V000139")
+        XCTAssertEqual(resolver.resolve(providerID: nil, name: "Richard W. Allen"), "A000372")
+        XCTAssertEqual(resolver.resolve(providerID: nil, name: "Thomas H. Kean Jr"), "K000398")
+    }
 }

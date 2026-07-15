@@ -67,6 +67,9 @@ struct InstrumentSearchView: View {
                         }
                     } header: { Text("search.results \(results.count)") }
                 } else {
+                    if appState.disclosureLoadError != nil {
+                        Section { disclosureErrorView }
+                    }
                     Section { partyFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
                     Section { chamberFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
                     Section {
@@ -82,6 +85,17 @@ struct InstrumentSearchView: View {
             .searchable(text: $query, prompt: scope == .markets ? "search.prompt" : "search.politicianPrompt")
             .navigationDestination(for: MarketInstrument.self) { InstrumentDetailView(instrument: $0) }
             .navigationDestination(for: Politician.self) { PoliticianProfileView(politician: $0) }
+            .refreshable { await appState.load(force: true) }
+        }
+    }
+
+    private var disclosureErrorView: some View {
+        HStack {
+            Label("disclosures.loadError", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline).foregroundStyle(.orange)
+            Spacer()
+            Button("common.retry") { Task { await appState.load(force: true) } }
+                .buttonStyle(.bordered)
         }
     }
 

@@ -77,3 +77,5 @@
 "study.keyWindows" = "Períodos clave de rentabilidad";
 "study.marketDataUnavailable" = "Análisis de mercado pendiente";
 "study.marketDataUnavailable.body" = "La declaración está disponible, pero aún no se han asociado precios históricos ajustados.";
+"disclosures.loadError" = "No se pudieron actualizar las divulgaciones.";
+"common.retry" = "Reintentar";
