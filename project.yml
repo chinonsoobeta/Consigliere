@@ -1,0 +1,47 @@
+name: Consigliere
+options:
+  bundleIdPrefix: com.chinonsoobeta
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: en
+  knownRegions: [en, en-CA, es, fr, Base]
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Consigliere:
+    type: application
+    platform: iOS
+    sources:
+      - path: Consigliere
+    resources:
+      - path: Consigliere/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.chinonsoobeta.Consigliere
+        PRODUCT_NAME: Consigliere
+        INFOPLIST_KEY_CFBundleDisplayName: Consigliere
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: true
+    scheme:
+      testTargets:
+        - ConsigliereTests
+  ConsigliereTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ConsigliereTests
+    dependencies:
+      - target: Consigliere
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+
