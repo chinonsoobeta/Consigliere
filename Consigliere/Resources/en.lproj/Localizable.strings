@@ -91,9 +91,13 @@
 "methodology.prices.body" = "Every quote carries an exchange or publisher, currency, timestamp, and freshness classification. Physical crude assessments are distinguished from exchange-traded contracts.";
 "methodology.personalization" = "Personalization";
 "methodology.personalization.body" = "Consigliere personalizes what a user monitors and measures, but does not tell the user what to buy, sell, or hold.";
-"search.scope" = "Search scope";
-"search.scope.politicians" = "Politicians";
-"search.scope.markets" = "Markets";
+"search.mode" = "Search category";
+"search.politicians" = "Politicians";
+"search.markets" = "Markets";
+"search.party" = "Party";
+"party.all" = "All";
+"party.democratic" = "Democrats";
+"party.republican" = "Republicans";
 "search.politicianPrompt" = "Politician, state, or party";
 "search.politicianResults %lld" = "%lld sitting members";
 "search.rosterSource" = "Current-member directory from Congress.gov. Disclosure counts reflect available normalized prototype records.";

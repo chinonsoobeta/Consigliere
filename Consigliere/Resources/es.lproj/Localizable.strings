@@ -48,8 +48,13 @@
 "event.marketReaction" = "Reacción observada del mercado";
 "event.analysis" = "Análisis";
 "event.confidence" = "Confianza de extracción";
-"search.scope.politicians" = "Políticos";
-"search.scope.markets" = "Mercados";
+"search.mode" = "Categoría de búsqueda";
+"search.politicians" = "Políticos";
+"search.markets" = "Mercados";
+"search.party" = "Partido";
+"party.all" = "Todos";
+"party.democratic" = "Demócratas";
+"party.republican" = "Republicanos";
 "search.politicianPrompt" = "Político, estado o partido";
 "chamber.house" = "Cámara";
 "chamber.senate" = "Senado";

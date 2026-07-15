@@ -5,12 +5,26 @@ struct InstrumentSearchView: View {
     @State private var query = ""
     @State private var selectedKind: InstrumentKind?
     @State private var selectedChamber: Chamber?
+    @State private var selectedParty = PartyFilter.all
     @State private var scope = SearchScope.politicians
 
     enum SearchScope: String, CaseIterable, Identifiable {
         case politicians, markets
         var id: String { rawValue }
-        var label: LocalizedStringKey { LocalizedStringKey("search.scope.\(rawValue)") }
+        var label: LocalizedStringKey { LocalizedStringKey("search.\(rawValue)") }
+    }
+
+    enum PartyFilter: String, CaseIterable, Identifiable {
+        case all, democratic, republican
+        var id: String { rawValue }
+        var label: LocalizedStringKey { LocalizedStringKey("party.\(rawValue)") }
+        var color: Color {
+            switch self {
+            case .all: ConsigliereTheme.navy
+            case .democratic: .blue
+            case .republican: .red
+            }
+        }
     }
 
     private var results: [MarketInstrument] {
@@ -25,17 +39,23 @@ struct InstrumentSearchView: View {
     private var politicianResults: [Politician] {
         appState.politicians.filter { politician in
             let matchesChamber = selectedChamber == nil || politician.chamber == selectedChamber
+            let matchesParty = switch selectedParty {
+            case .all: true
+            case .democratic: politician.party.localizedCaseInsensitiveContains("Democrat")
+            case .republican: politician.party.localizedCaseInsensitiveContains("Republican")
+            }
             let terms = [politician.name, politician.state, politician.party, politician.partyAbbreviation]
             let matchesQuery = query.isEmpty || terms.contains { $0.localizedCaseInsensitiveContains(query) }
-            return matchesChamber && matchesQuery
+            return matchesChamber && matchesParty && matchesQuery
         }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Picker("search.scope", selection: $scope) {
+                    Picker("search.mode", selection: $scope) {
                         ForEach(SearchScope.allCases) { Text($0.label).tag($0) }
                     }.pickerStyle(.segmented)
                 }
@@ -47,6 +67,7 @@ struct InstrumentSearchView: View {
                         }
                     } header: { Text("search.results \(results.count)") }
                 } else {
+                    Section { partyFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
                     Section { chamberFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
                     Section {
                         ForEach(politicianResults) { politician in
@@ -61,6 +82,26 @@ struct InstrumentSearchView: View {
             .searchable(text: $query, prompt: scope == .markets ? "search.prompt" : "search.politicianPrompt")
             .navigationDestination(for: MarketInstrument.self) { InstrumentDetailView(instrument: $0) }
             .navigationDestination(for: Politician.self) { PoliticianProfileView(politician: $0) }
+        }
+    }
+
+    private var partyFilters: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("search.party").font(.headline).padding(.horizontal)
+            HStack {
+                ForEach(PartyFilter.allCases) { party in
+                    Button { selectedParty = party } label: {
+                        Text(party.label)
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .foregroundStyle(selectedParty == party ? Color.white : party.color)
+                            .background(selectedParty == party ? party.color : party.color.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
         }
     }
 
@@ -118,7 +159,12 @@ struct InstrumentSearchView: View {
             .frame(width: 48, height: 48).clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text(politician.name).font(.headline)
-                Text("\(politician.partyAbbreviation) · \(politician.jurisdiction)").font(.subheadline).foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    Text(politician.partyAbbreviation)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(politician.partyAbbreviation == "R" ? Color.red : (politician.partyAbbreviation == "D" ? Color.blue : Color.secondary))
+                    Text("· \(politician.jurisdiction)").font(.subheadline).foregroundStyle(.secondary)
+                }
                 Label(politician.chamber.label, systemImage: politician.chamber.icon).font(.caption2).foregroundStyle(.tertiary)
             }
             Spacer()

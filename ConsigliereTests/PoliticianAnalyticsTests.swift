@@ -16,6 +16,13 @@ final class PoliticianAnalyticsTests: XCTestCase {
         XCTAssertEqual(coverage.first(where: { $0.year == 2026 })?.status, .noReportableTransactions)
     }
 
+    func testBundledRosterLoadsCurrentCongress() throws {
+        let roster = try PoliticianPrototypeData.loadRoster()
+
+        XCTAssertGreaterThan(roster.count, 500)
+        XCTAssertTrue(roster.contains { $0.id == "P000197" && $0.name.localizedCaseInsensitiveContains("Pelosi") })
+    }
+
     func testTradeYearBecomesComplete() {
         let trade = DisclosureTrade(
             id: UUID(), politicianID: politician.id, symbol: "TEST", assetName: "Test Security",
@@ -35,4 +42,3 @@ final class PoliticianAnalyticsTests: XCTestCase {
         XCTAssertEqual(point.abnormalReturn, 0.05, accuracy: 0.0001)
     }
 }
-

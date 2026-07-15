@@ -2,7 +2,9 @@ import Foundation
 
 enum PoliticianPrototypeData {
     static func loadRoster() throws -> [Politician] {
-        guard let url = Bundle.main.url(forResource: "current-politicians", withExtension: "json", subdirectory: "Data") else {
+        let url = Bundle.main.url(forResource: "current-politicians", withExtension: "json", subdirectory: "Data")
+            ?? Bundle.main.url(forResource: "current-politicians", withExtension: "json")
+        guard let url else {
             throw CocoaError(.fileNoSuchFile)
         }
         return try JSONDecoder().decode([Politician].self, from: Data(contentsOf: url))
@@ -79,4 +81,3 @@ enum PoliticianPrototypeData {
         ISO8601DateFormatter().date(from: value + "T12:00:00Z") ?? .now
     }
 }
-
