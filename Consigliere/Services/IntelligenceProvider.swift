@@ -4,12 +4,18 @@ protocol IntelligenceProvider: Sendable {
     func instruments() async throws -> [MarketInstrument]
     func events() async throws -> [MarketEvent]
     func holdings() async throws -> [PortfolioHolding]
+    func politicians() async throws -> [Politician]
+    func disclosures() async throws -> [DisclosureTrade]
+    func modelPortfolios() async throws -> [PoliticianModelPortfolio]
 }
 
 struct MockIntelligenceProvider: IntelligenceProvider {
     func instruments() async throws -> [MarketInstrument] { MockData.instruments }
     func events() async throws -> [MarketEvent] { MockData.events }
     func holdings() async throws -> [PortfolioHolding] { MockData.holdings }
+    func politicians() async throws -> [Politician] { try PoliticianPrototypeData.loadRoster() }
+    func disclosures() async throws -> [DisclosureTrade] { PoliticianPrototypeData.disclosures }
+    func modelPortfolios() async throws -> [PoliticianModelPortfolio] { PoliticianPrototypeData.modelPortfolios }
 }
 
 private enum MockData {

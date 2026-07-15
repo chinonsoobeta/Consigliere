@@ -4,6 +4,14 @@ struct InstrumentSearchView: View {
     @EnvironmentObject private var appState: AppState
     @State private var query = ""
     @State private var selectedKind: InstrumentKind?
+    @State private var selectedChamber: Chamber?
+    @State private var scope = SearchScope.politicians
+
+    enum SearchScope: String, CaseIterable, Identifiable {
+        case politicians, markets
+        var id: String { rawValue }
+        var label: LocalizedStringKey { LocalizedStringKey("search.scope.\(rawValue)") }
+    }
 
     private var results: [MarketInstrument] {
         appState.instruments.filter { instrument in
@@ -14,21 +22,62 @@ struct InstrumentSearchView: View {
         }
     }
 
+    private var politicianResults: [Politician] {
+        appState.politicians.filter { politician in
+            let matchesChamber = selectedChamber == nil || politician.chamber == selectedChamber
+            let terms = [politician.name, politician.state, politician.party, politician.partyAbbreviation]
+            let matchesQuery = query.isEmpty || terms.contains { $0.localizedCaseInsensitiveContains(query) }
+            return matchesChamber && matchesQuery
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                Section { kindFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
                 Section {
-                    ForEach(results) { instrument in
-                        NavigationLink(value: instrument) { resultRow(instrument) }
-                    }
-                } header: { Text("search.results \(results.count)") }
+                    Picker("search.scope", selection: $scope) {
+                        ForEach(SearchScope.allCases) { Text($0.label).tag($0) }
+                    }.pickerStyle(.segmented)
+                }
+                if scope == .markets {
+                    Section { kindFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
+                    Section {
+                        ForEach(results) { instrument in
+                            NavigationLink(value: instrument) { resultRow(instrument) }
+                        }
+                    } header: { Text("search.results \(results.count)") }
+                } else {
+                    Section { chamberFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
+                    Section {
+                        ForEach(politicianResults) { politician in
+                            NavigationLink(value: politician) { politicianRow(politician) }
+                        }
+                    } header: { Text("search.politicianResults \(politicianResults.count)") }
+                    footer: { Text("search.rosterSource") }
+                }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("search.title")
-            .searchable(text: $query, prompt: "search.prompt")
+            .searchable(text: $query, prompt: scope == .markets ? "search.prompt" : "search.politicianPrompt")
             .navigationDestination(for: MarketInstrument.self) { InstrumentDetailView(instrument: $0) }
+            .navigationDestination(for: Politician.self) { PoliticianProfileView(politician: $0) }
         }
+    }
+
+    private var chamberFilters: some View {
+        HStack {
+            chamberButton("search.all", chamber: nil)
+            chamberButton("chamber.house", chamber: .house)
+            chamberButton("chamber.senate", chamber: .senate)
+        }.padding(.horizontal)
+    }
+
+    private func chamberButton(_ title: LocalizedStringKey, chamber: Chamber?) -> some View {
+        Button { selectedChamber = chamber } label: {
+            Text(title).font(.caption.weight(.semibold)).padding(.horizontal, 14).padding(.vertical, 8)
+                .foregroundStyle(selectedChamber == chamber ? Color.white : Color.primary)
+                .background(selectedChamber == chamber ? ConsigliereTheme.navy : Color.secondary.opacity(0.12), in: Capsule())
+        }.buttonStyle(.plain)
     }
 
     private var kindFilters: some View {
@@ -60,5 +109,24 @@ struct InstrumentSearchView: View {
             VStack(alignment: .trailing, spacing: 5) { Text(instrument.formattedPrice).font(.subheadline.weight(.semibold)); ChangeLabel(value: instrument.changePercent) }
         }.padding(.vertical, 5)
     }
-}
 
+    private func politicianRow(_ politician: Politician) -> some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: politician.imageURL) { image in image.resizable().scaledToFill() } placeholder: {
+                Image(systemName: "person.crop.circle.fill").resizable().foregroundStyle(.secondary)
+            }
+            .frame(width: 48, height: 48).clipShape(Circle())
+            VStack(alignment: .leading, spacing: 4) {
+                Text(politician.name).font(.headline)
+                Text("\(politician.partyAbbreviation) · \(politician.jurisdiction)").font(.subheadline).foregroundStyle(.secondary)
+                Label(politician.chamber.label, systemImage: politician.chamber.icon).font(.caption2).foregroundStyle(.tertiary)
+            }
+            Spacer()
+            let tradeCount = appState.disclosures(for: politician).count
+            VStack(alignment: .trailing) {
+                Text(tradeCount.formatted()).font(.headline.monospacedDigit())
+                Text("search.disclosures").font(.caption2).foregroundStyle(.secondary)
+            }
+        }.padding(.vertical, 4)
+    }
+}

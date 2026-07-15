@@ -7,6 +7,9 @@ Consigliere is a North America-focused market intelligence prototype for iOS. It
 - U.S. and Canadian market pulse with European, Asia-Pacific, and global context
 - Congressional disclosure and presidential social-post event feed
 - Search across equities, indices, ETFs, futures, and physical crude assessments
+- Search all current House and Senate members using a bundled Congress.gov roster
+- Ten-year disclosure coverage, transaction event studies, and source-level filing dates
+- Politician Model Portfolios with reported-holdings and public-information simulations
 - Event-window market analysis with provenance and freshness labels
 - Watchlist and hypothetical portfolio exposure diagnostics
 - Light/dark appearance and US English, Canadian English, Spanish, and French localization

@@ -5,6 +5,9 @@ final class AppState: ObservableObject {
     @Published private(set) var instruments: [MarketInstrument] = []
     @Published private(set) var events: [MarketEvent] = []
     @Published private(set) var holdings: [PortfolioHolding] = []
+    @Published private(set) var politicians: [Politician] = []
+    @Published private(set) var disclosures: [DisclosureTrade] = []
+    @Published private(set) var modelPortfolios: [PoliticianModelPortfolio] = []
     @Published var isLoading = false
     @Published var selectedRegion: MarketRegion = .northAmerica
 
@@ -48,9 +51,15 @@ final class AppState: ObservableObject {
             async let loadedInstruments = provider.instruments()
             async let loadedEvents = provider.events()
             async let loadedHoldings = provider.holdings()
+            async let loadedPoliticians = provider.politicians()
+            async let loadedDisclosures = provider.disclosures()
+            async let loadedModelPortfolios = provider.modelPortfolios()
             instruments = try await loadedInstruments
             events = try await loadedEvents.sorted { $0.publishedAt > $1.publishedAt }
             holdings = try await loadedHoldings
+            politicians = try await loadedPoliticians
+            disclosures = try await loadedDisclosures
+            modelPortfolios = try await loadedModelPortfolios
         } catch {
             // A production client exposes provider health and recovery actions here.
         }
@@ -62,6 +71,18 @@ final class AppState: ObservableObject {
         else { symbols.insert(instrument.symbol) }
         storedWatchlist = symbols.sorted().joined(separator: ",")
         objectWillChange.send()
+    }
+
+    func disclosures(for politician: Politician) -> [DisclosureTrade] {
+        disclosures.filter { $0.politicianID == politician.id }.sorted { $0.transactionDate > $1.transactionDate }
+    }
+
+    func coverage(for politician: Politician) -> [DisclosureCoverageYear] {
+        PoliticianAnalytics.coverage(for: politician, trades: disclosures(for: politician))
+    }
+
+    func modelPortfolio(for politician: Politician) -> PoliticianModelPortfolio? {
+        modelPortfolios.first { $0.politicianID == politician.id }
     }
 }
 
@@ -89,4 +110,3 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
     }
 }
-

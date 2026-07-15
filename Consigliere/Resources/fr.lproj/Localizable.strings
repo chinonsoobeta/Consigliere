@@ -48,4 +48,25 @@
 "event.marketReaction" = "Réaction observée du marché";
 "event.analysis" = "Analyse";
 "event.confidence" = "Confiance de l’extraction";
-
+"search.scope.politicians" = "Politiciens";
+"search.scope.markets" = "Marchés";
+"search.politicianPrompt" = "Politicien, État ou parti";
+"chamber.house" = "Chambre";
+"chamber.senate" = "Sénat";
+"politician.coverage" = "Couverture des déclarations sur dix ans";
+"politician.disclosures" = "Déclarations boursières";
+"politician.noTrades" = "Aucune opération normalisée disponible";
+"coverage.complete" = "Complète";
+"coverage.partial" = "Partielle";
+"coverage.noReportableTransactions" = "Aucune opération";
+"coverage.sourceUnavailable" = "Indisponible";
+"coverage.notServing" = "Hors mandat";
+"trade.purchase" = "Achat";
+"trade.sale" = "Vente";
+"trade.exchange" = "Échange";
+"model.title" = "Portefeuille modèle du politicien";
+"model.reportedHoldings" = "Avoirs déclarés";
+"model.publicInformation" = "Information publique";
+"model.notETF" = "Il s’agit d’un portefeuille modèle hypothétique, pas d’un FNB ni d’un fonds investissable.";
+"study.title" = "Étude de l’opération";
+"study.keyWindows" = "Fenêtres de rendement clés";

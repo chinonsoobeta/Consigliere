@@ -48,4 +48,25 @@
 "event.marketReaction" = "Reacción observada del mercado";
 "event.analysis" = "Análisis";
 "event.confidence" = "Confianza de extracción";
-
+"search.scope.politicians" = "Políticos";
+"search.scope.markets" = "Mercados";
+"search.politicianPrompt" = "Político, estado o partido";
+"chamber.house" = "Cámara";
+"chamber.senate" = "Senado";
+"politician.coverage" = "Cobertura de declaraciones de diez años";
+"politician.disclosures" = "Declaraciones bursátiles";
+"politician.noTrades" = "No hay operaciones normalizadas disponibles";
+"coverage.complete" = "Completa";
+"coverage.partial" = "Parcial";
+"coverage.noReportableTransactions" = "Sin operaciones";
+"coverage.sourceUnavailable" = "No disponible";
+"coverage.notServing" = "Fuera del cargo";
+"trade.purchase" = "Compra";
+"trade.sale" = "Venta";
+"trade.exchange" = "Intercambio";
+"model.title" = "Cartera modelo del político";
+"model.reportedHoldings" = "Posiciones declaradas";
+"model.publicInformation" = "Información pública";
+"model.notETF" = "Esta es una cartera modelo hipotética, no un ETF ni un fondo invertible.";
+"study.title" = "Estudio del evento bursátil";
+"study.keyWindows" = "Períodos clave de rentabilidad";
