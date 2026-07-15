@@ -139,6 +139,8 @@
 "study.disclosureLag" = "Disclosure lag";
 "study.owner" = "Reported owner";
 "study.methodology" = "Prototype returns demonstrate the event-study interface. Production calculations require split- and dividend-adjusted prices, market calendars, sector benchmarks, amendments, and licensed historical data. Correlation does not establish causation.";
+"study.marketDataUnavailable" = "Market analysis pending";
+"study.marketDataUnavailable.body" = "The disclosure is available, but adjusted historical prices have not yet been attached to this record.";
 "model.title" = "Politician Model Portfolio";
 "model.subtitle" = "Hypothetical disclosure-based research basket";
 "model.profileDescription" = "Compare estimated reported holdings with the information investors could actually have known.";

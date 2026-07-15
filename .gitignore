@@ -4,4 +4,6 @@ build/
 *.xcuserstate
 xcuserdata/
 .swiftpm/
-
+node_modules/
+.dev.vars
+.wrangler/

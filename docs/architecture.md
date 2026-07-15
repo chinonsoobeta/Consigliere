@@ -1,6 +1,10 @@
 # Architecture and production data boundary
 
-The prototype deliberately separates the SwiftUI client from data acquisition. `IntelligenceProvider` is the client-facing boundary; `MockIntelligenceProvider` supplies deterministic preview data today.
+The prototype deliberately separates the SwiftUI client from data acquisition. `IntelligenceProvider` is the client-facing boundary; `MockIntelligenceProvider` supplies deterministic preview data today. When `CONSILIERE_API_BASE_URL` is configured, `HybridIntelligenceProvider` obtains disclosures from the Consigliere backend while retaining prototype market data during development.
+
+The `backend/` Cloudflare Worker is the Apify credential and normalization boundary. A scheduled job invokes Ryan Clinton's `congress-stock-tracker` Actor, stores normalized rows in D1, and preserves each raw Actor record. The mobile client receives only Consigliere's normalized contract; it never receives the Apify token. The client resolves Actor member names against the bundled Congress.gov roster and accepts only unique matches to stable Bioguide IDs. Failed backend requests fall back to fixtures in debug builds, while successful empty responses remain empty and are not replaced with invented records.
+
+The initial adapter uses the Actor's full output profile and consumes only `trade` records as transactions. `filing` records—especially Senate or scanned reports without machine-readable transaction rows—are retained in `source_filings` with their extraction status and source URL. Unmapped names are excluded from politician profiles rather than guessed. The Actor's maximum 730-day lookback is suitable for forward collection and recent backfill, not the full ten-year requirement; archival coverage remains a separate ingestion concern.
 
 For production, a backend should implement provider adapters for:
 

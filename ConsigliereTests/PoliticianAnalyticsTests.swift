@@ -23,6 +23,14 @@ final class PoliticianAnalyticsTests: XCTestCase {
         XCTAssertTrue(roster.contains { $0.id == "P000197" && $0.name.localizedCaseInsensitiveContains("Pelosi") })
     }
 
+    func testSeededDisclosuresMatchBundledPolitician() throws {
+        let roster = try PoliticianPrototypeData.loadRoster()
+        let disclosedPoliticianIDs = Set(PoliticianPrototypeData.disclosures.map(\.politicianID))
+
+        XCTAssertEqual(PoliticianPrototypeData.disclosures.count, 3)
+        XCTAssertTrue(disclosedPoliticianIDs.isSubset(of: Set(roster.map(\.id))))
+    }
+
     func testTradeYearBecomesComplete() {
         let trade = DisclosureTrade(
             id: UUID(), politicianID: politician.id, symbol: "TEST", assetName: "Test Security",

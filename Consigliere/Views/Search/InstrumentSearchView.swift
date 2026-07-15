@@ -11,13 +11,13 @@ struct InstrumentSearchView: View {
     enum SearchScope: String, CaseIterable, Identifiable {
         case politicians, markets
         var id: String { rawValue }
-        var label: LocalizedStringKey { LocalizedStringKey("search.\(rawValue)") }
+        var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "search.\(rawValue)") }
     }
 
     enum PartyFilter: String, CaseIterable, Identifiable {
         case all, democratic, republican
         var id: String { rawValue }
-        var label: LocalizedStringKey { LocalizedStringKey("party.\(rawValue)") }
+        var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "party.\(rawValue)") }
         var color: Color {
             switch self {
             case .all: ConsigliereTheme.navy

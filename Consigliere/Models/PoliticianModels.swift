@@ -3,7 +3,7 @@ import SwiftUI
 
 enum Chamber: String, Codable, CaseIterable {
     case house, senate
-    var label: LocalizedStringKey { LocalizedStringKey("chamber.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "chamber.\(rawValue)") }
     var icon: String { self == .senate ? "building.columns.fill" : "person.3.fill" }
 }
 
@@ -30,7 +30,7 @@ struct Politician: Identifiable, Hashable, Codable {
 
 enum DisclosureCoverageStatus: String, Codable, CaseIterable {
     case complete, partial, noReportableTransactions, sourceUnavailable, notServing
-    var label: LocalizedStringKey { LocalizedStringKey("coverage.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "coverage.\(rawValue)") }
     var color: Color {
         switch self {
         case .complete: ConsigliereTheme.positive
@@ -59,14 +59,14 @@ struct DisclosureCoverageYear: Identifiable, Hashable {
 
 enum DisclosureTransactionType: String, Codable, CaseIterable {
     case purchase, sale, exchange
-    var label: LocalizedStringKey { LocalizedStringKey("trade.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "trade.\(rawValue)") }
     var color: Color { self == .purchase ? ConsigliereTheme.positive : (self == .sale ? ConsigliereTheme.negative : .blue) }
     var icon: String { self == .purchase ? "arrow.down.to.line" : (self == .sale ? "arrow.up.from.line" : "arrow.left.arrow.right") }
 }
 
 enum DisclosureOwner: String, Codable {
     case member, spouse, dependent, joint
-    var label: LocalizedStringKey { LocalizedStringKey("owner.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "owner.\(rawValue)") }
 }
 
 struct EventStudyPoint: Identifiable, Hashable, Codable {
@@ -90,6 +90,27 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     let filedDate: Date
     let sourceURL: URL
     let eventStudy: [EventStudyPoint]
+    let freshness: DataFreshness
+
+    init(
+        id: UUID, politicianID: String, symbol: String, assetName: String,
+        type: DisclosureTransactionType, owner: DisclosureOwner, amountRange: String,
+        transactionDate: Date, filedDate: Date, sourceURL: URL,
+        eventStudy: [EventStudyPoint], freshness: DataFreshness = .prototype
+    ) {
+        self.id = id
+        self.politicianID = politicianID
+        self.symbol = symbol
+        self.assetName = assetName
+        self.type = type
+        self.owner = owner
+        self.amountRange = amountRange
+        self.transactionDate = transactionDate
+        self.filedDate = filedDate
+        self.sourceURL = sourceURL
+        self.eventStudy = eventStudy
+        self.freshness = freshness
+    }
 
     var disclosureLagDays: Int {
         Calendar.current.dateComponents([.day], from: transactionDate, to: filedDate).day ?? 0
@@ -101,7 +122,7 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
 enum ModelPortfolioMode: String, CaseIterable, Identifiable {
     case reportedHoldings, publicInformation
     var id: String { rawValue }
-    var label: LocalizedStringKey { LocalizedStringKey("model.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "model.\(rawValue)") }
 }
 
 struct ModelPosition: Identifiable, Hashable, Codable {

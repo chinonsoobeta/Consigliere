@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01CEEF88658D4B668312EF0F /* PoliticianModelPortfolioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866D50260C9A71DB8736C6CF /* PoliticianModelPortfolioView.swift */; };
+		0A825D042F5EDEE4949F0FF6 /* ConsigliereAPIProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43432B8C7A737DDC87136EE /* ConsigliereAPIProviderTests.swift */; };
 		0F590FD5345F26B95357DC6D /* TradeEventStudyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34305D1D24CAD54D6A3E2F9A /* TradeEventStudyView.swift */; };
 		24362DA2FBC99183C34C9C58 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = FB6ACE4C1B2F8467AE7B6CF1 /* Localizable.strings */; };
 		268D38A8E4D4459F94B10D08 /* IntelligenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C629C7275407F7D8D0957BF6 /* IntelligenceProvider.swift */; };
@@ -17,6 +18,7 @@
 		542C9106D92012908E39249D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C905C74CDACF1891737C5652 /* SettingsView.swift */; };
 		54EE4706875A4913E1CBF0AC /* ConsigliereApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 708FD4DC10A4B1E2A69D7619 /* ConsigliereApp.swift */; };
 		5550DB4B803463BA362150A2 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E231171F57185B2972863D64 /* Theme.swift */; };
+		5E5A4F00B79474D6DFD88389 /* ConsigliereAPIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67EF0093BDC67FB6D8EE53DC /* ConsigliereAPIProvider.swift */; };
 		62AFCCD9337B0BF4B666A62F /* InstrumentSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2846CBCCD3BA67120C83D5DB /* InstrumentSearchView.swift */; };
 		76694328DEE16202C12E6D6A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB5865330529207C888132BE /* AppState.swift */; };
 		82E811D67BD7EABDEEA6E458 /* AnalysisEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E778A3D2EC9753CF6B36B44F /* AnalysisEngineTests.swift */; };
@@ -55,6 +57,7 @@
 		5A2E5E04CA325725021C5919 /* current-politicians.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "current-politicians.json"; sourceTree = "<group>"; };
 		5B936D18342577E5C2CD18D4 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
 		5FDD8B837E21680B984857A8 /* InstrumentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentDetailView.swift; sourceTree = "<group>"; };
+		67EF0093BDC67FB6D8EE53DC /* ConsigliereAPIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsigliereAPIProvider.swift; sourceTree = "<group>"; };
 		708FD4DC10A4B1E2A69D7619 /* ConsigliereApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsigliereApp.swift; sourceTree = "<group>"; };
 		7F47D9161BDBAF0396CF6FC6 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
 		866D50260C9A71DB8736C6CF /* PoliticianModelPortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoliticianModelPortfolioView.swift; sourceTree = "<group>"; };
@@ -68,6 +71,7 @@
 		C629C7275407F7D8D0957BF6 /* IntelligenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceProvider.swift; sourceTree = "<group>"; };
 		C905C74CDACF1891737C5652 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E231171F57185B2972863D64 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		E43432B8C7A737DDC87136EE /* ConsigliereAPIProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsigliereAPIProviderTests.swift; sourceTree = "<group>"; };
 		E778A3D2EC9753CF6B36B44F /* AnalysisEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisEngineTests.swift; sourceTree = "<group>"; };
 		F67DC7AB8B01F3A81996351E /* ConsigliereTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ConsigliereTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FB3CF7A4AEF4FC7FB13ED979 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -109,6 +113,7 @@
 			isa = PBXGroup;
 			children = (
 				E778A3D2EC9753CF6B36B44F /* AnalysisEngineTests.swift */,
+				E43432B8C7A737DDC87136EE /* ConsigliereAPIProviderTests.swift */,
 				4F0238A7BF8A0ECA1DE46E2E /* PoliticianAnalyticsTests.swift */,
 			);
 			path = ConsigliereTests;
@@ -205,6 +210,7 @@
 		E10991B6B3CE4043636FB0C0 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				67EF0093BDC67FB6D8EE53DC /* ConsigliereAPIProvider.swift */,
 				C629C7275407F7D8D0957BF6 /* IntelligenceProvider.swift */,
 				329EE55048CBF9445B76D9BC /* PoliticianPrototypeData.swift */,
 			);
@@ -333,6 +339,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				76694328DEE16202C12E6D6A /* AppState.swift in Sources */,
+				5E5A4F00B79474D6DFD88389 /* ConsigliereAPIProvider.swift in Sources */,
 				54EE4706875A4913E1CBF0AC /* ConsigliereApp.swift in Sources */,
 				D391737105C5160793ECAAB9 /* DashboardView.swift in Sources */,
 				3BB35364DF9A1136CAC31FF9 /* EventDetailView.swift in Sources */,
@@ -358,6 +365,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				82E811D67BD7EABDEEA6E458 /* AnalysisEngineTests.swift in Sources */,
+				0A825D042F5EDEE4949F0FF6 /* ConsigliereAPIProviderTests.swift in Sources */,
 				FFABC5AC066C8D4298BDF0FA /* PoliticianAnalyticsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -468,8 +476,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CONSILIERE_API_BASE_URL = "https://consigliere-ingestion.chinonsoobeta.workers.dev";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Consigliere;
+				INFOPLIST_KEY_CONSIGLIERE_API_BASE_URL = "$(CONSILIERE_API_BASE_URL)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -491,8 +501,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CONSILIERE_API_BASE_URL = "https://consigliere-ingestion.chinonsoobeta.workers.dev";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Consigliere;
+				INFOPLIST_KEY_CONSIGLIERE_API_BASE_URL = "$(CONSILIERE_API_BASE_URL)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

@@ -75,3 +75,5 @@
 "model.notETF" = "Il s’agit d’un portefeuille modèle hypothétique, pas d’un FNB ni d’un fonds investissable.";
 "study.title" = "Étude de l’opération";
 "study.keyWindows" = "Fenêtres de rendement clés";
+"study.marketDataUnavailable" = "Analyse de marché en attente";
+"study.marketDataUnavailable.body" = "La déclaration est disponible, mais les cours historiques ajustés n’y sont pas encore associés.";

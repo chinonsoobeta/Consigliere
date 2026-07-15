@@ -17,7 +17,7 @@ final class AppState: ObservableObject {
 
     private let provider: any IntelligenceProvider
 
-    init(provider: any IntelligenceProvider = MockIntelligenceProvider()) {
+    init(provider: any IntelligenceProvider = ProviderFactory.makeDefault()) {
         self.provider = provider
     }
 
@@ -90,7 +90,7 @@ enum Appearance: String, CaseIterable, Identifiable {
     case system, light, dark
     var id: String { rawValue }
     var colorScheme: ColorScheme? { self == .system ? nil : (self == .dark ? .dark : .light) }
-    var label: LocalizedStringKey { LocalizedStringKey("appearance.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "appearance.\(rawValue)") }
 }
 
 enum AppLanguage: String, CaseIterable, Identifiable {

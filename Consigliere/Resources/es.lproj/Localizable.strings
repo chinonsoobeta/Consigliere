@@ -75,3 +75,5 @@
 "model.notETF" = "Esta es una cartera modelo hipotética, no un ETF ni un fondo invertible.";
 "study.title" = "Estudio del evento bursátil";
 "study.keyWindows" = "Períodos clave de rentabilidad";
+"study.marketDataUnavailable" = "Análisis de mercado pendiente";
+"study.marketDataUnavailable.body" = "La declaración está disponible, pero aún no se han asociado precios históricos ajustados.";

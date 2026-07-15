@@ -1,0 +1,4 @@
+APIFY_API_TOKEN=replace-with-a-development-token
+SYNC_TOKEN=replace-with-a-long-random-value
+APIFY_BASE_URL=https://api.apify.com
+APIFY_ACTOR_ID=ryanclinton~congress-stock-tracker

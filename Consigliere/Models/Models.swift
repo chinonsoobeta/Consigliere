@@ -4,12 +4,12 @@ import SwiftUI
 enum MarketRegion: String, CaseIterable, Codable, Identifiable {
     case northAmerica, europe, asiaPacific, global
     var id: String { rawValue }
-    var title: LocalizedStringKey { LocalizedStringKey("region.\(rawValue)") }
+    var title: LocalizedStringKey { LocalizedStringKey(stringLiteral: "region.\(rawValue)") }
 }
 
 enum InstrumentKind: String, Codable, CaseIterable {
     case equity, etf, index, future, currency, yield, spotAssessment, differential
-    var label: LocalizedStringKey { LocalizedStringKey("instrument.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "instrument.\(rawValue)") }
     var icon: String {
         switch self {
         case .equity: "building.2"
@@ -26,7 +26,7 @@ enum InstrumentKind: String, Codable, CaseIterable {
 
 enum DataFreshness: String, Codable {
     case live, delayed, prototype, assessment, stale
-    var label: LocalizedStringKey { LocalizedStringKey("freshness.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "freshness.\(rawValue)") }
     var color: Color {
         switch self {
         case .live: .green
@@ -72,7 +72,7 @@ struct MarketInstrument: Identifiable, Hashable, Codable {
 
 enum EventSource: String, Codable {
     case truthSocial, houseDisclosure, senateDisclosure
-    var label: LocalizedStringKey { LocalizedStringKey("source.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "source.\(rawValue)") }
     var icon: String {
         switch self {
         case .truthSocial: "bubble.left.and.text.bubble.right"
@@ -84,7 +84,7 @@ enum EventSource: String, Codable {
 
 enum ImpactLevel: String, Codable {
     case low, moderate, elevated
-    var label: LocalizedStringKey { LocalizedStringKey("impact.\(rawValue)") }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "impact.\(rawValue)") }
     var color: Color { self == .elevated ? .red : (self == .moderate ? .orange : .blue) }
     var icon: String { self == .elevated ? "exclamationmark.triangle.fill" : (self == .moderate ? "waveform.path.ecg" : "info.circle.fill") }
 }

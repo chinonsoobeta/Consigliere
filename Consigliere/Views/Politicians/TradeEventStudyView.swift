@@ -10,7 +10,7 @@ struct TradeEventStudyView: View {
     enum EventStudySeries: String, CaseIterable, Identifiable {
         case security, abnormal
         var id: String { rawValue }
-        var label: LocalizedStringKey { LocalizedStringKey("study.\(rawValue)") }
+        var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "study.\(rawValue)") }
     }
 
     private var points: [EventStudyPoint] {
@@ -24,8 +24,17 @@ struct TradeEventStudyView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 controls
-                chart
-                windows
+                if points.isEmpty {
+                    ContentUnavailableView(
+                        "study.marketDataUnavailable",
+                        systemImage: "chart.xyaxis.line",
+                        description: Text("study.marketDataUnavailable.body")
+                    )
+                    .consigliereCard()
+                } else {
+                    chart
+                    windows
+                }
                 dates
                 methodology
                 Link(destination: trade.sourceURL) { Label("event.openSource", systemImage: "arrow.up.right.square") }.consigliereCard()
@@ -116,8 +125,7 @@ struct TradeEventStudyView: View {
         VStack(alignment: .leading, spacing: 9) {
             Label("event.methodology", systemImage: "function").font(.headline)
             Text("study.methodology").font(.footnote).foregroundStyle(.secondary)
-            FreshnessBadge(freshness: .prototype)
+            FreshnessBadge(freshness: trade.freshness)
         }.consigliereCard()
     }
 }
-
