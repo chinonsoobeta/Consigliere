@@ -3,6 +3,9 @@ APIFY_API_TOKEN=replace-with-an-apify-secret
 APIFY_ACTOR_ID=4Y9oheOAZjMZ3gGqH
 # Optional for replaying one completed run during local testing only:
 # APIFY_RUN_ID=TfAfbkYgfdZs37cRJ
+# Optional paid Truth Social actor. Leave unset until recurring cost is approved:
+# TRUTH_APIFY_ACTOR_ID=OnFmvaVe9Muy1pkvL
+# TRUTH_MAX_RESULTS=50
 TWELVE_DATA_API_KEY=licensed-market-data-key
 TRUTH_API_URL=https://licensed-truth-api.example/posts
 TRUTH_API_TOKEN=licensed-truth-api-token

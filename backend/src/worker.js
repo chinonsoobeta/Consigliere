@@ -12,7 +12,7 @@ const EXPECTED_SOURCES = [
 ];
 const MAX_INTERNAL_BODY_BYTES = 4096;
 const SYNC_LOCK_MS = 15 * 60_000;
-const WORKER_VERSION = "2026-07-16-apify-v2";
+const WORKER_VERSION = "2026-07-16-history-v3";
 
 export default {
   async fetch(request, env) {
@@ -32,29 +32,43 @@ export default {
       if (bodyResult.error) return json({ error: bodyResult.error }, bodyResult.status);
       const body = bodyResult.value;
       const currentYear = new Date().getUTCFullYear();
-      const requestedYear = Number(body.year ?? currentYear);
-      if (!Number.isInteger(requestedYear) || requestedYear < 2008 || requestedYear > currentYear) {
-        return json({ error: "invalid_year", minimum: 2008, maximum: currentYear }, 400);
+      const startYear = Number(body.startYear ?? body.year ?? 2012);
+      const endYear = Number(body.endYear ?? body.year ?? currentYear);
+      if (
+        !Number.isInteger(startYear) || !Number.isInteger(endYear)
+        || startYear < 2012 || endYear > currentYear || startYear > endYear
+      ) {
+        return json({ error: "invalid_year_range", minimum: 2012, maximum: currentYear }, 400);
       }
-      const results = await Promise.allSettled([
-        syncOfficial(env, requestedYear),
-        syncApify(env, {
-          chamber: body.chamber,
-          filingYear: requestedYear,
-          maxResults: body.maxResults,
-          query: body.query,
-          state: body.state
-        })
-      ]);
-      return json(settledResponse(results));
+      return json(await enqueueBackfill(env, startYear, endYear, body.chamber));
+    }
+    if (request.method === "POST" && url.pathname === "/internal/backfill/run-next") {
+      if (!await authorized(request, env)) return json({ error: "unauthorized" }, 401);
+      return json(await processNextBackfillJob(env));
+    }
+    if (request.method === "POST" && url.pathname === "/internal/backfill/reconcile") {
+      if (!await authorized(request, env)) return json({ error: "unauthorized" }, 401);
+      const bodyResult = await readSmallJSON(request);
+      if (bodyResult.error) return json({ error: bodyResult.error }, bodyResult.status);
+      const runID = String(bodyResult.value.runID ?? "").trim();
+      if (!/^[A-Za-z0-9]{10,40}$/.test(runID)) return json({ error: "invalid_run_id" }, 400);
+      const offset = clamp(Number(bodyResult.value.offset) || 0, 0, 1_000_000);
+      const limit = clamp(Number(bodyResult.value.limit) || 25, 1, 100);
+      return json(await reconcileBackfillJob(env, runID, offset, limit));
     }
     return json({ error: "not_found" }, 404);
   },
 
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(syncAll(env));
+    ctx.waitUntil(runScheduled(env));
   }
 };
+
+async function runScheduled(env) {
+  const live = await syncAll(env);
+  const backfill = await processNextBackfillJob(env);
+  return { live, backfill };
+}
 
 async function health(env) {
   const result = await env.DB.prepare(`
@@ -131,23 +145,51 @@ async function listDisclosures(url, env) {
   const ticker = url.searchParams.get("ticker")?.toUpperCase();
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
-  const limit = clamp(Number(url.searchParams.get("limit")) || 1000, 1, 5000);
+  const representative = url.searchParams.get("representative")?.trim();
+  const chamber = url.searchParams.get("chamber")?.toLowerCase();
+  const dateBasis = url.searchParams.get("date_basis") === "filed" ? "report_date" : "transaction_date";
+  const cursorDate = url.searchParams.get("cursor_date");
+  const cursorID = url.searchParams.get("cursor_id");
+  const limit = clamp(Number(url.searchParams.get("limit")) || 100, 1, 500);
   const clauses = [];
   const values = [];
   if (politicianID) { clauses.push("politician_id = ?"); values.push(politicianID); }
   if (ticker) { clauses.push("ticker = ?"); values.push(ticker); }
-  if (from) { clauses.push("transaction_date >= ?"); values.push(from); }
-  if (to) { clauses.push("transaction_date <= ?"); values.push(to); }
+  if (representative) {
+    clauses.push("LOWER(representative) LIKE ? ESCAPE '\\'");
+    values.push(`%${representative.toLowerCase().replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`);
+  }
+  if (chamber === "house" || chamber === "senate") {
+    clauses.push("chamber = ?");
+    values.push(chamber);
+  }
+  if (from) { clauses.push(`${dateBasis} >= ?`); values.push(from); }
+  if (to) { clauses.push(`${dateBasis} <= ?`); values.push(to); }
+  if (cursorDate && cursorID) {
+    clauses.push(`(${dateBasis} < ? OR (${dateBasis} = ? AND id < ?))`);
+    values.push(cursorDate, cursorDate, cursorID);
+  }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   const result = await env.DB.prepare(`
     SELECT id, politician_id, representative, ticker, asset_name, transaction_type, owner,
            amount_range, transaction_date, report_date, source_url, chamber, confidence,
-           ranking_score, ranking_reasons, why_it_matters
+           ranking_score, ranking_reasons, why_it_matters, party, state, district,
+           match_confidence
     FROM disclosures ${where}
-    ORDER BY report_date DESC, transaction_date DESC LIMIT ?
+    ORDER BY ${dateBasis} DESC, id DESC LIMIT ?
   `).bind(...values, limit).all();
   const data = result.results.map(mapDisclosure);
-  return json({ data, meta: { count: data.length, generatedAt: new Date().toISOString() } });
+  const last = result.results.at(-1);
+  return json({
+    data,
+    meta: {
+      count: data.length,
+      generatedAt: new Date().toISOString(),
+      nextCursor: data.length === limit && last
+        ? { date: last[dateBasis], id: last.id }
+        : null
+    }
+  });
 }
 
 async function listSourceFilings(url, env) {
@@ -178,6 +220,116 @@ async function syncAll(env) {
   };
 }
 
+async function enqueueBackfill(env, startYear, endYear, requestedChamber) {
+  const chambers = requestedChamber === "house" || requestedChamber === "senate"
+    ? [requestedChamber]
+    : ["house", "senate"];
+  const now = new Date().toISOString();
+  const statements = [];
+  for (let year = startYear; year <= endYear; year += 1) {
+    for (const chamber of chambers) {
+      statements.push(env.DB.prepare(`
+        INSERT INTO disclosure_backfill_jobs(filing_year, chamber, status, created_at)
+        VALUES (?, ?, 'pending', ?)
+        ON CONFLICT(filing_year, chamber) DO UPDATE SET
+          status=CASE
+            WHEN disclosure_backfill_jobs.status = 'completed' THEN disclosure_backfill_jobs.status
+            ELSE 'pending'
+          END,
+          last_error=NULL
+      `).bind(year, chamber, now));
+    }
+  }
+  await executeInChunks(env.DB, statements);
+  return { status: "queued", startYear, endYear, chambers, jobs: statements.length };
+}
+
+async function processNextBackfillJob(env) {
+  const claimedAt = new Date().toISOString();
+  const candidate = await env.DB.prepare(`
+    SELECT id, filing_year, chamber FROM disclosure_backfill_jobs
+    WHERE status IN ('pending', 'failed') AND attempts < 3
+    ORDER BY filing_year DESC, chamber LIMIT 1
+  `).first();
+  if (!candidate) return { status: "idle" };
+  const claim = await env.DB.prepare(`
+    UPDATE disclosure_backfill_jobs
+    SET status='running', attempts=attempts+1, started_at=?, last_error=NULL
+    WHERE id=? AND status IN ('pending', 'failed')
+  `).bind(claimedAt, candidate.id).run();
+  if (Number(claim.meta?.changes ?? 0) === 0) return { status: "skipped" };
+  try {
+    const result = await syncApify(env, {
+      filingYear: candidate.filing_year,
+      chamber: candidate.chamber,
+      maxResults: 1_000
+    }, `apify-backfill-${candidate.filing_year}-${candidate.chamber}`);
+    await env.DB.prepare(`
+      UPDATE disclosure_backfill_jobs SET status='completed', finished_at=?,
+        records_seen=?, records_written=? WHERE id=?
+    `).bind(
+      new Date().toISOString(), result.recordsSeen ?? 0, result.recordsWritten ?? 0, candidate.id
+    ).run();
+    return { status: "completed", year: candidate.filing_year, chamber: candidate.chamber, result };
+  } catch (error) {
+    const message = String(error?.message ?? error).slice(0, 1000);
+    await env.DB.prepare(`
+      UPDATE disclosure_backfill_jobs SET status='failed', finished_at=?, last_error=? WHERE id=?
+    `).bind(new Date().toISOString(), message, candidate.id).run();
+    return { status: "failed", year: candidate.filing_year, chamber: candidate.chamber, error: message };
+  }
+}
+
+async function reconcileBackfillJob(env, runID, offset, limit) {
+  const candidate = await env.DB.prepare(`
+    SELECT id, filing_year, chamber FROM disclosure_backfill_jobs
+    WHERE status = 'running' ORDER BY started_at LIMIT 1
+  `).first();
+  if (!candidate) return { status: "idle", message: "No running backfill job" };
+  try {
+    const result = await syncApify(env, {
+      runID,
+      filingYear: candidate.filing_year,
+      chamber: candidate.chamber,
+      datasetOffset: offset,
+      datasetLimit: limit
+    }, `apify-backfill-${candidate.filing_year}-${candidate.chamber}`);
+    if (result.status === "skipped") {
+      return {
+        status: "deferred",
+        year: candidate.filing_year,
+        chamber: candidate.chamber,
+        message: result.message
+      };
+    }
+    const completed = (result.itemsSeen ?? 0) < limit;
+    await env.DB.prepare(`
+      UPDATE disclosure_backfill_jobs SET status=?, finished_at=?,
+        records_seen=records_seen+?, records_written=records_written+?, last_error=NULL WHERE id=?
+    `).bind(
+      completed ? "completed" : "running",
+      completed ? new Date().toISOString() : null,
+      result.recordsSeen ?? 0,
+      result.recordsWritten ?? 0,
+      candidate.id
+    ).run();
+    return {
+      status: completed ? "completed" : "page-completed",
+      year: candidate.filing_year,
+      chamber: candidate.chamber,
+      offset,
+      nextOffset: completed ? null : offset + limit,
+      result
+    };
+  } catch (error) {
+    const message = String(error?.message ?? error).slice(0, 1000);
+    await env.DB.prepare(`
+      UPDATE disclosure_backfill_jobs SET status='failed', finished_at=?, last_error=? WHERE id=?
+    `).bind(new Date().toISOString(), message, candidate.id).run();
+    return { status: "failed", year: candidate.filing_year, chamber: candidate.chamber, error: message };
+  }
+}
+
 async function syncOfficial(env, year = new Date().getUTCFullYear()) {
   return withHealth(env, "official-disclosures", "Official House disclosure index", async () => {
     const { filings, failures } = await collectOfficialFilings(env, year);
@@ -199,10 +351,10 @@ async function syncOfficial(env, year = new Date().getUTCFullYear()) {
   });
 }
 
-async function syncApify(env, input = {}) {
-  return withHealth(env, "apify", "Structured House and Senate disclosures", async () => {
+async function syncApify(env, input = {}, provider = "apify") {
+  return withHealth(env, provider, "Structured House and Senate disclosures", async () => {
     if (!env.APIFY_API_TOKEN) return { recordsSeen: 0, message: "Not configured" };
-    const { filings, disclosures } = await collectApifyDisclosures(env, input);
+    const { filings, disclosures, itemsSeen } = await collectApifyDisclosures(env, input);
     const now = new Date().toISOString();
     const marketMoves = await marketMoveLookup(env.DB);
     const disclosureStatements = disclosures.map((record) => {
@@ -227,6 +379,7 @@ async function syncApify(env, input = {}) {
     return {
       recordsSeen: filings.length,
       recordsWritten: disclosures.length + filings.length,
+      itemsSeen: itemsSeen ?? filings.length,
       coverageStart: minimumDate(filings.map((item) => item.disclosureDate)),
       coverageEnd: maximumDate(filings.map((item) => item.disclosureDate)),
       message: filings.length ? null : "No filings returned by Apify"
@@ -236,7 +389,9 @@ async function syncApify(env, input = {}) {
 
 async function syncTruth(env) {
   return withHealth(env, "truth-api", "Truth Social political monitoring", async () => {
-    if (!env.TRUTH_API_URL || !env.TRUTH_API_TOKEN) return { recordsSeen: 0, message: "Not configured" };
+    const hasLicensedAPI = env.TRUTH_API_URL && env.TRUTH_API_TOKEN;
+    const hasApifyActor = env.TRUTH_APIFY_ACTOR_ID && env.APIFY_API_TOKEN;
+    if (!hasLicensedAPI && !hasApifyActor) return { recordsSeen: 0, message: "Not configured" };
     const rows = await collectTruthPosts(env);
     const now = new Date().toISOString();
     const marketMoves = await marketMoveLookup(env.DB);
@@ -413,20 +568,25 @@ function disclosureStatement(db, value) {
   return db.prepare(`
     INSERT INTO disclosures(id, provider, politician_id, representative, report_date, transaction_date,
       ticker, asset_name, transaction_type, owner, amount_range, chamber, party, source_url,
-      raw_json, observed_at, updated_at, confidence, ranking_score, ranking_reasons, why_it_matters)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      raw_json, observed_at, updated_at, confidence, ranking_score, ranking_reasons, why_it_matters,
+      state, district, match_confidence)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET politician_id=COALESCE(excluded.politician_id, disclosures.politician_id),
       asset_name=excluded.asset_name, transaction_type=excluded.transaction_type, owner=excluded.owner,
       amount_range=excluded.amount_range, chamber=excluded.chamber, party=excluded.party,
       source_url=excluded.source_url, raw_json=excluded.raw_json, updated_at=excluded.updated_at,
       confidence=excluded.confidence, ranking_score=excluded.ranking_score,
-      ranking_reasons=excluded.ranking_reasons, why_it_matters=excluded.why_it_matters
+      ranking_reasons=excluded.ranking_reasons, why_it_matters=excluded.why_it_matters,
+      state=COALESCE(excluded.state, disclosures.state),
+      district=COALESCE(excluded.district, disclosures.district),
+      match_confidence=COALESCE(excluded.match_confidence, disclosures.match_confidence)
   `).bind(
     value.id, value.provider, value.politicianID, value.representative, value.reportDate,
     value.transactionDate, value.ticker, value.assetName, value.transactionType, value.owner,
     value.amountRange, value.chamber, value.party, value.sourceURL, value.rawJSON,
     value.observedAt, value.updatedAt, value.confidence, value.rankingScore,
-    JSON.stringify(value.rankingReasons), value.whyItMatters
+    JSON.stringify(value.rankingReasons), value.whyItMatters,
+    value.state ?? null, value.district ?? null, value.matchConfidence ?? null
   );
 }
 
@@ -502,6 +662,10 @@ function mapDisclosure(row) {
     filedDate: row.report_date,
     sourceURL: row.source_url,
     chamber: row.chamber,
+    party: row.party,
+    state: row.state,
+    district: row.district,
+    matchConfidence: row.match_confidence,
     confidence: row.confidence,
     rankingScore: row.ranking_score,
     rankingReasons: parseJSON(row.ranking_reasons, []),

@@ -67,7 +67,64 @@ struct ConsigliereAPIClient: IntelligenceProvider {
         return try Self.decodeSnapshot(data, politicians: CongressRosterLoader.load())
     }
 
+    func disclosures(query: DisclosureQuery, politicians: [Politician]) async throws -> DisclosurePage {
+        var components = URLComponents(
+            url: baseURL.appending(path: "v1/disclosures"),
+            resolvingAgainstBaseURL: false
+        )
+        var items = [
+            URLQueryItem(name: "date_basis", value: query.dateBasis.rawValue),
+            URLQueryItem(name: "limit", value: String(min(max(query.limit, 1), 500)))
+        ]
+        if let representative = query.representative {
+            items.append(URLQueryItem(name: "representative", value: representative))
+        }
+        if let chamber = query.chamber {
+            items.append(URLQueryItem(name: "chamber", value: chamber.rawValue))
+        }
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        if let from = query.from {
+            items.append(URLQueryItem(name: "from", value: formatter.string(from: from)))
+        }
+        if let to = query.to {
+            items.append(URLQueryItem(name: "to", value: formatter.string(from: to)))
+        }
+        if let cursor = query.cursor {
+            items.append(URLQueryItem(name: "cursor_date", value: cursor.date))
+            items.append(URLQueryItem(name: "cursor_id", value: cursor.id))
+        }
+        components?.queryItems = items
+        guard let url = components?.url else { throw ClientError.invalidResponse }
+        var request = URLRequest(url: url, timeoutInterval: 30)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw ClientError.serverStatus(httpResponse.statusCode)
+        }
+        return try Self.decodeDisclosurePage(data, politicians: politicians)
+    }
+
     static func decodeSnapshot(_ data: Data, politicians: [Politician]) throws -> IntelligenceSnapshot {
+        let decoder = configuredDecoder()
+        let response = try decoder.decode(SnapshotResponse.self, from: data)
+        return snapshot(from: response.data, politicians: politicians)
+    }
+
+    static func decodeDisclosurePage(_ data: Data, politicians: [Politician]) throws -> DisclosurePage {
+        let response = try configuredDecoder().decode(DisclosurePageResponse.self, from: data)
+        return DisclosurePage(
+            disclosures: decodeDisclosures(response.data, politicians: politicians),
+            nextCursor: response.meta.nextCursor
+        )
+    }
+
+    private static func configuredDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -81,12 +138,36 @@ struct ConsigliereAPIClient: IntelligenceProvider {
                 debugDescription: "Invalid ISO-8601 date: \(value)"
             )
         }
-        let response = try decoder.decode(SnapshotResponse.self, from: data)
+        return decoder
+    }
+
+    private static func snapshot(from data: SnapshotData, politicians: [Politician]) -> IntelligenceSnapshot {
+        IntelligenceSnapshot(
+            instruments: data.instruments,
+            events: data.intelligence,
+            politicians: politicians,
+            disclosures: decodeDisclosures(data.disclosures, politicians: politicians),
+            sourceHealth: data.sourceHealth,
+            coverage: data.coverage
+        )
+    }
+
+    private static func decodeDisclosures(
+        _ records: [DisclosureRecord],
+        politicians: [Politician]
+    ) -> [DisclosureTrade] {
         let resolver = PoliticianIdentityResolver(politicians: politicians)
-        let disclosures = response.data.disclosures.compactMap { record -> DisclosureTrade? in
+        return records.compactMap { record -> DisclosureTrade? in
             guard
                 let id = UUID(uuidString: record.id),
-                let politicianID = resolver.resolve(providerID: record.politicianID, name: record.representative),
+                let politicianID = resolver.resolve(
+                    providerID: record.politicianID,
+                    name: record.representative,
+                    chamber: record.chamber.flatMap(Chamber.init(rawValue:)),
+                    party: record.party,
+                    state: record.state,
+                    district: record.district
+                ),
                 let transactionDate = parseDate(record.transactionDate),
                 let filedDate = parseDate(record.filedDate),
                 let type = DisclosureTransactionType(rawValue: record.type),
@@ -112,14 +193,6 @@ struct ConsigliereAPIClient: IntelligenceProvider {
                 whyItMatters: record.whyItMatters
             )
         }
-        return IntelligenceSnapshot(
-            instruments: response.data.instruments,
-            events: response.data.intelligence,
-            politicians: politicians,
-            disclosures: disclosures,
-            sourceHealth: response.data.sourceHealth,
-            coverage: response.data.coverage
-        )
     }
 
     private static func parseDate(_ value: String) -> Date? {
@@ -129,6 +202,15 @@ struct ConsigliereAPIClient: IntelligenceProvider {
 
 private struct SnapshotResponse: Decodable {
     let data: SnapshotData
+}
+
+private struct DisclosurePageResponse: Decodable {
+    let data: [DisclosureRecord]
+    let meta: DisclosurePageMeta
+}
+
+private struct DisclosurePageMeta: Decodable {
+    let nextCursor: DisclosureCursor?
 }
 
 private struct SnapshotData: Decodable {
@@ -155,9 +237,15 @@ private struct DisclosureRecord: Decodable {
     let rankingScore: Double
     let rankingReasons: [String]
     let whyItMatters: String
+    let chamber: String?
+    let party: String?
+    let state: String?
+    let district: Int?
+    let matchConfidence: Double?
 }
 
 struct PoliticianIdentityResolver {
+    private static let fuzzyMatchThreshold = 0.75
     private let politicians: [Politician]
     private let IDs: Set<String>
     private let exactMatches: [String: Politician]
@@ -171,10 +259,20 @@ struct PoliticianIdentityResolver {
         )
     }
 
-    func resolve(providerID: String?, name: String) -> String? {
+    func resolve(
+        providerID: String?,
+        name: String,
+        chamber: Chamber? = nil,
+        party: String? = nil,
+        state: String? = nil,
+        district: Int? = nil
+    ) -> String? {
         if let providerID, IDs.contains(providerID) { return providerID }
         let normalized = Self.normalize(name)
-        if let exact = exactMatches[normalized] { return exact.id }
+        if let exact = exactMatches[normalized],
+           Self.contextMatches(exact, chamber: chamber, party: party, state: state, district: district) {
+            return exact.id
+        }
         let components = Self.identityComponents(normalized)
         guard let givenName = components.first, let surname = components.last else { return nil }
         let matches = politicians.filter {
@@ -182,13 +280,118 @@ struct PoliticianIdentityResolver {
             guard let candidateGiven = candidate.first, candidate.last == surname else { return false }
             return Self.canonicalGivenName(String(candidateGiven)) == Self.canonicalGivenName(String(givenName))
         }
-        if matches.count == 1 { return matches[0].id }
+        let contextualMatches = matches.filter {
+            Self.contextMatches($0, chamber: chamber, party: party, state: state, district: district)
+        }
+        if contextualMatches.count == 1 { return contextualMatches[0].id }
         guard let firstInitial = givenName.first else { return nil }
         let initialMatches = politicians.filter {
             let candidate = Self.identityComponents(Self.normalize($0.name))
             return candidate.first?.first == firstInitial && candidate.last == surname
         }
-        return initialMatches.count == 1 ? initialMatches[0].id : nil
+        let contextualInitialMatches = initialMatches.filter {
+            Self.contextMatches($0, chamber: chamber, party: party, state: state, district: district)
+        }
+        if contextualInitialMatches.count == 1 { return contextualInitialMatches[0].id }
+        return fuzzyMatch(
+            normalizedName: normalized,
+            chamber: chamber,
+            party: party,
+            state: state,
+            district: district
+        )?.id
+    }
+
+    private func fuzzyMatch(
+        normalizedName: String,
+        chamber: Chamber?,
+        party: String?,
+        state: String?,
+        district: Int?
+    ) -> Politician? {
+        let ranked = politicians.compactMap { politician -> (Politician, Double)? in
+            guard Self.contextMatches(
+                politician,
+                chamber: chamber,
+                party: party,
+                state: state,
+                district: district
+            ) else { return nil }
+            let score = Self.similarity(normalizedName, Self.normalize(politician.name))
+            return score >= Self.fuzzyMatchThreshold ? (politician, score) : nil
+        }.sorted {
+            if $0.1 == $1.1 { return $0.0.id < $1.0.id }
+            return $0.1 > $1.1
+        }
+        guard let best = ranked.first else { return nil }
+        guard ranked.dropFirst().first.map({ best.1 - $0.1 >= 0.05 }) ?? true else { return nil }
+        return best.0
+    }
+
+    private static func contextMatches(
+        _ politician: Politician,
+        chamber: Chamber?,
+        party: String?,
+        state: String?,
+        district: Int?
+    ) -> Bool {
+        if let chamber, politician.chamber != chamber { return false }
+        if let state, !state.isEmpty {
+            let normalizedState = state.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            let candidateState = politician.state.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            if normalizedState != candidateState
+                && normalizedState != Self.stateAbbreviation(candidateState) {
+                return false
+            }
+        }
+        if let district, let candidateDistrict = politician.district, district != candidateDistrict {
+            return false
+        }
+        if let party, !party.isEmpty {
+            let sourceParty = party.lowercased().prefix(1)
+            if sourceParty != politician.party.lowercased().prefix(1) { return false }
+        }
+        return true
+    }
+
+    private static func stateAbbreviation(_ state: String) -> String {
+        let names = [
+            "california": "ca", "new york": "ny", "texas": "tx", "florida": "fl",
+            "georgia": "ga", "alabama": "al", "arkansas": "ar", "tennessee": "tn",
+            "new jersey": "nj", "north carolina": "nc", "south carolina": "sc",
+            "pennsylvania": "pa", "illinois": "il", "ohio": "oh", "michigan": "mi",
+            "virginia": "va", "washington": "wa", "massachusetts": "ma"
+        ]
+        return names[state.lowercased()] ?? state.lowercased()
+    }
+
+    private static func similarity(_ lhs: String, _ rhs: String) -> Double {
+        guard !lhs.isEmpty || !rhs.isEmpty else { return 1 }
+        let distance = levenshteinDistance(lhs, rhs)
+        let editSimilarity = 1 - Double(distance) / Double(max(lhs.count, rhs.count))
+        let lhsTokens = Set(lhs.split(separator: " "))
+        let rhsTokens = Set(rhs.split(separator: " "))
+        let shared = lhsTokens.intersection(rhsTokens).count
+        let tokenSimilarity = Double(shared * 2) / Double(max(lhsTokens.count + rhsTokens.count, 1))
+        return max(editSimilarity, tokenSimilarity)
+    }
+
+    private static func levenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
+        let left = Array(lhs)
+        let right = Array(rhs)
+        var previous = Array(0...right.count)
+        for leftIndex in left.indices {
+            var current = [leftIndex + 1] + Array(repeating: 0, count: right.count)
+            for rightIndex in right.indices {
+                current[rightIndex + 1] = min(
+                    previous[rightIndex + 1] + 1,
+                    current[rightIndex] + 1,
+                    previous[rightIndex] + (left[leftIndex] == right[rightIndex] ? 0 : 1)
+                )
+            }
+            previous = current
+        }
+        return previous[right.count]
     }
 
     private static func identityComponents(_ normalizedName: String) -> [Substring] {

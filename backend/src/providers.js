@@ -72,13 +72,17 @@ export function parseHouseIndex(text, year) {
 
 export async function collectApifyDisclosures(env, input = {}) {
   if (!env.APIFY_API_TOKEN) return { filings: [], disclosures: [] };
-  const payload = env.APIFY_RUN_ID
-    ? await fetchApifyRunDataset(env, env.APIFY_RUN_ID)
+  const runID = input.runID ?? env.APIFY_RUN_ID;
+  const payload = runID
+    ? await fetchApifyRunDataset(env, runID, {
+      offset: input.datasetOffset,
+      limit: input.datasetLimit
+    })
     : (await Promise.all(apifyInputs(input).map((actorInput) =>
       runApifyActor(env, actorInput)
     ))).flat();
   if (!Array.isArray(payload)) throw new Error("Apify returned an unexpected dataset payload");
-  return normalizeApifyDataset(payload);
+  return { ...normalizeApifyDataset(payload), itemsSeen: payload.length };
 }
 
 export function normalizeApifyDataset(payload) {
@@ -88,6 +92,9 @@ export function normalizeApifyDataset(payload) {
     const representative = String(row.memberName ?? row.member ?? "").trim().slice(0, 300);
     const chamber = normalizeChamber(row.chamber);
     const reportDate = dateOnly(row.dateSubmitted ?? row.filingDate ?? row.disclosureDate);
+    const state = normalizeState(row.state ?? row.memberState ?? row.stateCode);
+    const district = normalizeDistrict(row.district ?? row.congressionalDistrict);
+    const party = normalizeParty(row.party ?? row.partyRegistration);
     const sourceURL = String(row.documentUrl ?? row.filingUrl ?? "");
     const sourceHosts = chamber === "house"
       ? ["disclosures-clerk.house.gov"]
@@ -135,7 +142,10 @@ export function normalizeApifyDataset(payload) {
         owner,
         amountRange,
         chamber,
-        party: null,
+        party,
+        state,
+        district,
+        matchConfidence: null,
         sourceURL,
         confidence: 0.95,
         rawJSON: JSON.stringify({ filing: row, transaction })
@@ -146,6 +156,15 @@ export function normalizeApifyDataset(payload) {
 }
 
 export async function collectTruthPosts(env) {
+  if (env.TRUTH_APIFY_ACTOR_ID && env.APIFY_API_TOKEN) {
+    const payload = await runApifyActorByID(env, env.TRUTH_APIFY_ACTOR_ID, {
+      query: "realDonaldTrump",
+      maxResults: clampInteger(env.TRUTH_MAX_RESULTS, 1, 500, 50),
+      includeReplies: false,
+      onlyNewSinceLastRun: true
+    });
+    return normalizeTruthRows(payload);
+  }
   if (!env.TRUTH_API_URL || !env.TRUTH_API_TOKEN) return [];
   const response = await fetchWithTimeout(env.TRUTH_API_URL, {
     headers: { Authorization: `Bearer ${env.TRUTH_API_TOKEN}`, Accept: "application/json" }
@@ -154,22 +173,28 @@ export async function collectTruthPosts(env) {
   const payload = await response.json();
   const rows = Array.isArray(payload) ? payload : payload.data;
   if (!Array.isArray(rows)) throw new Error("Truth API returned an unexpected payload");
+  return normalizeTruthRows(rows);
+}
+
+export function normalizeTruthRows(rows) {
   return rows.map((row) => {
-    const sourceURL = String(row.url ?? row.sourceURL ?? "");
-    const publishedAt = safeISOString(row.publishedAt ?? row.created_at);
-    const body = String(row.contentText ?? row.text ?? row.content ?? "")
+    const sourceURL = String(row.url ?? row.sourceURL ?? row.sourceUrl ?? "");
+    const publishedAt = safeISOString(row.publishedAt ?? row.createdAt ?? row.created_at);
+    const body = String(row.contentText ?? row.text ?? row.content ?? row.body ?? "")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 20_000);
     if (!publishedAt || !body || !isTrustedURL(sourceURL, [TRUTH_SOCIAL_HOST], true)) return null;
-    const policyTopics = stringArray(row.policyTopics, 30);
+    const policyTopics = stringArray(row.policyTopics ?? row.hashtags, 30);
     const mentionedSymbols = stringArray(row.mentionedSymbols, 30)
       .map((symbol) => symbol.toUpperCase());
     return {
       id: stableUUID(`truth|${row.id ?? sourceURL}`),
       provider: "truth-api",
-      author: String(row.author ?? row.account?.acct ?? "Truth Social").slice(0, 300),
+      author: String(
+        row.author ?? row.authorDisplayName ?? row.authorUsername ?? row.account?.acct ?? "Donald J. Trump"
+      ).slice(0, 300),
       body,
       sourceURL,
       publishedAt,
@@ -243,8 +268,8 @@ export function apifyInput(value = {}) {
     chamber: ["house", "senate"].includes(value.chamber) ? value.chamber : "senate",
     fetchTransactions: true,
     filingType: "P",
-    filingYear: clampInteger(value.filingYear, 2008, currentYear, currentYear),
-    maxResults: clampInteger(value.maxResults, 1, 500, 50),
+    filingYear: clampInteger(value.filingYear, 2012, currentYear, currentYear),
+    maxResults: clampInteger(value.maxResults, 1, 1_000, 1_000),
     query: typeof value.query === "string" ? value.query.trim().slice(0, 100) : "",
     state: typeof value.state === "string" ? value.state.trim().toUpperCase().slice(0, 2) : ""
   };
@@ -262,6 +287,10 @@ export function apifyInputs(value = {}) {
 
 async function runApifyActor(env, input) {
   const actorID = env.APIFY_ACTOR_ID || "4Y9oheOAZjMZ3gGqH";
+  return runApifyActorByID(env, actorID, input);
+}
+
+async function runApifyActorByID(env, actorID, input) {
   const url = new URL(`/v2/acts/${encodeURIComponent(actorID)}/runs`, APIFY_BASE);
   url.searchParams.set("waitForFinish", "300");
   const response = await fetchWithTimeout(url, {
@@ -282,7 +311,7 @@ async function runApifyActor(env, input) {
   return fetchApifyDataset(env, run.defaultDatasetId);
 }
 
-async function fetchApifyRunDataset(env, runID) {
+async function fetchApifyRunDataset(env, runID, options = {}) {
   const runURL = new URL(`/v2/actor-runs/${encodeURIComponent(runID)}`, APIFY_BASE);
   const runResponse = await fetchWithTimeout(runURL, {
     headers: { Authorization: `Bearer ${env.APIFY_API_TOKEN}`, Accept: "application/json" }
@@ -292,12 +321,18 @@ async function fetchApifyRunDataset(env, runID) {
   if (run?.status !== "SUCCEEDED" || !run.defaultDatasetId) {
     throw new Error(`Apify run is not ready: ${run?.status ?? "unknown"}`);
   }
-  return fetchApifyDataset(env, run.defaultDatasetId);
+  return fetchApifyDataset(env, run.defaultDatasetId, options);
 }
 
-async function fetchApifyDataset(env, datasetID) {
+async function fetchApifyDataset(env, datasetID, options = {}) {
   const datasetURL = new URL(`/v2/datasets/${encodeURIComponent(datasetID)}/items`, APIFY_BASE);
   datasetURL.searchParams.set("clean", "true");
+  if (Number.isInteger(options.offset) && options.offset >= 0) {
+    datasetURL.searchParams.set("offset", String(options.offset));
+  }
+  if (Number.isInteger(options.limit) && options.limit >= 1 && options.limit <= 1_000) {
+    datasetURL.searchParams.set("limit", String(options.limit));
+  }
   const datasetResponse = await fetchWithTimeout(datasetURL, {
     headers: { Authorization: `Bearer ${env.APIFY_API_TOKEN}`, Accept: "application/json" }
   });
@@ -308,6 +343,21 @@ async function fetchApifyDataset(env, datasetID) {
 function normalizeChamber(value) {
   const chamber = String(value ?? "").trim().toLowerCase();
   return chamber === "house" || chamber === "senate" ? chamber : null;
+}
+
+function normalizeState(value) {
+  const state = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(state) ? state : null;
+}
+
+function normalizeDistrict(value) {
+  const district = Number(value);
+  return Number.isInteger(district) && district >= 0 && district <= 99 ? district : null;
+}
+
+function normalizeParty(value) {
+  const party = String(value ?? "").trim().slice(0, 100);
+  return party || null;
 }
 
 function documentIdentifier(value) {

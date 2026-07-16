@@ -109,4 +109,80 @@ final class ConsigliereAPIProviderTests: XCTestCase {
 
         XCTAssertNil(resolver.resolve(providerID: nil, name: "A Smith"))
     }
+
+    func testIdentityResolverUsesSeventyFivePercentNameMatchAndContext() {
+        let politicians = [
+            Politician(id: "P000197", name: "Nancy Pelosi", party: "Democratic", state: "California", district: 11, chamber: .house, imageURL: nil, serviceStart: 1987),
+            Politician(id: "P999999", name: "Nancy Peloso", party: "Republican", state: "Texas", district: 4, chamber: .house, imageURL: nil, serviceStart: 2025)
+        ]
+        let resolver = PoliticianIdentityResolver(politicians: politicians)
+
+        XCTAssertEqual(
+            resolver.resolve(
+                providerID: nil,
+                name: "Nancy D. Pelosi",
+                chamber: .house,
+                party: "Democratic",
+                state: "CA",
+                district: 11
+            ),
+            "P000197"
+        )
+        XCTAssertNil(
+            resolver.resolve(
+                providerID: nil,
+                name: "Nancy Pelosi",
+                chamber: .senate,
+                party: "Democratic",
+                state: "CA",
+                district: 11
+            )
+        )
+    }
+
+    func testDecodesPaginatedDisclosureResponse() throws {
+        let json = """
+        {
+          "data": [{
+            "id": "80565df0-f682-4f2c-a446-8a14fe94d86d",
+            "politicianID": null,
+            "representative": "Nancy D. Pelosi",
+            "symbol": "NVDA",
+            "assetName": "NVIDIA Corporation",
+            "type": "sale",
+            "owner": "spouse",
+            "amountRange": "$1,000,001–$5,000,000",
+            "transactionDate": "2024-06-24",
+            "filedDate": "2024-07-02",
+            "sourceURL": "https://example.com/filing.pdf",
+            "chamber": "house",
+            "party": "Democratic",
+            "state": "CA",
+            "district": 11,
+            "matchConfidence": 0.95,
+            "confidence": 0.95,
+            "rankingScore": 0.84,
+            "rankingReasons": ["Large reported value range"],
+            "whyItMatters": "A newly public disclosure."
+          }],
+          "meta": {
+            "count": 1,
+            "generatedAt": "2026-07-16T12:00:00Z",
+            "nextCursor": {
+              "date": "2024-06-24",
+              "id": "80565df0-f682-4f2c-a446-8a14fe94d86d"
+            }
+          }
+        }
+        """
+        let politicians = [Politician(
+            id: "P000197", name: "Nancy Pelosi", party: "Democratic", state: "California",
+            district: 11, chamber: .house, imageURL: nil, serviceStart: 1987
+        )]
+
+        let page = try ConsigliereAPIClient.decodeDisclosurePage(Data(json.utf8), politicians: politicians)
+
+        XCTAssertEqual(page.disclosures.first?.politicianID, "P000197")
+        XCTAssertEqual(page.nextCursor?.date, "2024-06-24")
+    }
 }

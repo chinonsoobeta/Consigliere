@@ -9,6 +9,7 @@ final class AppState: ObservableObject {
     @Published private(set) var sourceHealth: [SourceHealth] = []
     @Published private(set) var availableCoverage: [DisclosureCoverageSummary] = []
     @Published private(set) var disclosureLoadError: String?
+    @Published private(set) var loadingPoliticianIDs: Set<String> = []
     @Published var isLoading = false
     @Published var selectedRegion: MarketRegion = .northAmerica
 
@@ -98,12 +99,65 @@ final class AppState: ObservableObject {
         disclosures.filter { $0.politicianID == politician.id }.sorted { $0.transactionDate > $1.transactionDate }
     }
 
+    func loadDisclosures(
+        for politician: Politician,
+        from: Date? = nil,
+        to: Date? = nil,
+        dateBasis: DisclosureQuery.DateBasis = .transaction
+    ) async {
+        guard !loadingPoliticianIDs.contains(politician.id) else { return }
+        loadingPoliticianIDs.insert(politician.id)
+        defer { loadingPoliticianIDs.remove(politician.id) }
+        do {
+            var cursor: DisclosureCursor?
+            var fetched: [DisclosureTrade] = []
+            repeat {
+                let page = try await providerFactory().disclosures(
+                    query: DisclosureQuery(
+                        representative: politician.name.split(separator: " ").last.map(String.init),
+                        chamber: politician.chamber,
+                        from: from,
+                        to: to,
+                        dateBasis: dateBasis,
+                        limit: 500,
+                        cursor: cursor
+                    ),
+                    politicians: politicians
+                )
+                fetched.append(contentsOf: page.disclosures.filter { $0.politicianID == politician.id })
+                cursor = page.nextCursor
+            } while cursor != nil
+            let replacements = Set(fetched.map(\.id))
+            disclosures.removeAll {
+                $0.politicianID == politician.id && replacements.contains($0.id)
+            }
+            disclosures.append(contentsOf: fetched)
+            disclosureLoadError = nil
+        } catch {
+            disclosureLoadError = error.localizedDescription
+        }
+    }
+
     func disclosureCount(for politician: Politician) -> Int {
         disclosures.filter { $0.politicianID == politician.id }.count
     }
 
     func coverage(for politician: Politician) -> DisclosureCoverageSummary? {
-        availableCoverage.first { $0.chamber == politician.chamber.rawValue }
+        let records = disclosures(for: politician)
+        guard !records.isEmpty else { return nil }
+        let dates = records.map(\.filedDate).sorted()
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return DisclosureCoverageSummary(
+            chamber: politician.id,
+            earliest: dates.first.map(formatter.string(from:)),
+            latest: dates.last.map(formatter.string(from:)),
+            records: records.count,
+            completeness: "matched-records"
+        )
     }
 }
 

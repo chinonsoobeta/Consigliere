@@ -23,7 +23,8 @@ struct PoliticianProfileView: View {
         .navigationTitle(politician.name)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: DisclosureTrade.self) { TradeEventStudyView(trade: $0, politician: politician) }
-        .refreshable { await appState.load(force: true) }
+        .task { await appState.loadDisclosures(for: politician) }
+        .refreshable { await appState.loadDisclosures(for: politician) }
     }
 
     private var disclosureErrorView: some View {
@@ -55,7 +56,7 @@ struct PoliticianProfileView: View {
     private var coverageSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Available disclosure coverage").font(.title3.bold())
-            Text("Coverage reflects records currently retrieved and normalized; it is not a claim of complete ten-year history.")
+            Text("Coverage reflects disclosures matched to this person, rather than chamber-wide totals.")
                 .font(.caption).foregroundStyle(.secondary)
             if let coverage {
                 HStack {
@@ -79,7 +80,12 @@ struct PoliticianProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("politician.disclosures").font(.title3.bold())
             if trades.isEmpty {
-                ContentUnavailableView("politician.noTrades", systemImage: "doc.text.magnifyingglass", description: Text("politician.noTrades.body"))
+                if appState.loadingPoliticianIDs.contains(politician.id) {
+                    ProgressView("Loading normalized disclosures…")
+                        .frame(maxWidth: .infinity)
+                } else {
+                    ContentUnavailableView("politician.noTrades", systemImage: "doc.text.magnifyingglass", description: Text("politician.noTrades.body"))
+                }
             } else {
                 ForEach(trades) { trade in
                     NavigationLink(value: trade) { DisclosureTradeRow(trade: trade) }.buttonStyle(.plain)

@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { strToU8, zipSync } from "fflate";
 import {
-  apifyInput, apifyInputs, houseIndexFromArchive, isTrustedURL, normalizeApifyDataset, parseHouseIndex
+  apifyInput, apifyInputs, houseIndexFromArchive, isTrustedURL, normalizeApifyDataset,
+  normalizeTruthRows, parseHouseIndex
 } from "../src/providers.js";
 import { dateOnly, normalizeOwner, normalizeTransaction } from "../src/normalization.js";
 import { rankDisclosure, whyDisclosureMatters } from "../src/ranking.js";
@@ -123,11 +124,27 @@ test("constrains Apify actor inputs to supported values", () => {
     chamber: "senate",
     fetchTransactions: true,
     filingType: "P",
-    filingYear: 2008,
-    maxResults: 500,
+    filingYear: 2012,
+    maxResults: 1_000,
     query: "x".repeat(100),
     state: "CA"
   });
   assert.deepEqual(apifyInputs({ filingYear: 2026 }).map((input) => input.chamber), ["house", "senate"]);
-  assert.equal(apifyInput({}).maxResults, 50);
+  assert.equal(apifyInput({}).maxResults, 1_000);
+});
+
+test("normalizes the configured Truth Social actor schema", () => {
+  const rows = normalizeTruthRows([{
+    id: "114784862292392723",
+    url: "https://truthsocial.com/@realDonaldTrump/114784862292392723",
+    content: "<p>Tariffs and trade policy update.</p>",
+    createdAt: "2026-05-30T14:22:01.000Z",
+    authorUsername: "realDonaldTrump",
+    authorDisplayName: "Donald J. Trump",
+    hashtags: ["Trade"]
+  }]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].author, "Donald J. Trump");
+  assert.equal(rows[0].body, "Tariffs and trade policy update.");
+  assert.deepEqual(rows[0].policyTopics, ["Trade"]);
 });
