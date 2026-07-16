@@ -27,6 +27,6 @@ final class AnalysisEngineTests: XCTestCase {
     }
 
     private func instrument(symbol: String, sector: String, price: Double, change: Double) -> MarketInstrument {
-        MarketInstrument(id: UUID(), symbol: symbol, name: symbol, exchange: "TEST", currency: "USD", region: .northAmerica, kind: .equity, price: price, changePercent: change, freshness: .prototype, updatedAt: .now, sector: sector, aliases: [], history: [])
+        MarketInstrument(id: UUID(), symbol: symbol, name: symbol, exchange: "TEST", currency: "USD", region: .northAmerica, kind: .equity, price: price, changePercent: change, freshness: .delayed, updatedAt: .now, sector: sector, aliases: [], history: [])
     }
 }

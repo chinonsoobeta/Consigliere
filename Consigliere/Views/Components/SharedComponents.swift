@@ -106,7 +106,12 @@ struct EventCard: View {
                 Text(event.publishedAt, style: .relative).font(.caption).foregroundStyle(.secondary)
             }
             Text(event.title).font(.headline).foregroundStyle(.primary)
+            Text("Why it matters").font(.caption.weight(.bold)).foregroundStyle(ConsigliereTheme.gold)
             Text(event.explanation).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
+            if let reason = event.rankingReasons.first {
+                Label(reason, systemImage: "line.3.horizontal.decrease.circle")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
             HStack {
                 ImpactBadge(impact: event.impact)
                 Spacer()
@@ -117,6 +122,23 @@ struct EventCard: View {
                 }
             }
         }
+        .consigliereCard()
+    }
+}
+
+struct SourceUnavailableView: View {
+    let title: String
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: "antenna.radiowaves.left.and.right.slash")
+                .font(.headline)
+            Text(message).font(.subheadline).foregroundStyle(.secondary)
+            Button("Retry", action: retry).buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .consigliereCard()
     }
 }

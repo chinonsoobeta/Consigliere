@@ -1,47 +1,60 @@
 # Consigliere
 
-Consigliere is a North America-focused market intelligence prototype for iOS. It connects political events and public congressional disclosures with transparent, timestamped market context while avoiding personalized investment recommendations.
+Consigliere is an iOS political-market intelligence publication for self-directed investors and researchers. It presents newly public congressional disclosures and political statements alongside timestamped market context, source evidence, and explicit uncertainty. It does not provide personalized investment recommendations.
 
-## Prototype capabilities
+## Product principles
 
-- U.S. and Canadian market pulse with European, Asia-Pacific, and global context
-- Congressional disclosure and presidential social-post event feed
-- Search across equities, indices, ETFs, futures, and physical crude assessments
-- Search all current House and Senate members using a bundled Congress.gov roster
-- Ten-year disclosure coverage, transaction event studies, and source-level filing dates
-- Politician Model Portfolios with reported-holdings and public-information simulations
-- Event-window market analysis with provenance and freshness labels
-- Watchlist and hypothetical portfolio exposure diagnostics
-- Light/dark appearance and US English, Canadian English, Spanish, and French localization
-- Accessibility support for Dynamic Type, VoiceOver, and color-independent status cues
+- Political-market intelligence, with primary-source evidence
+- Transaction dates and public disclosure dates are always distinct
+- “Why it matters” summaries are generated from visible evidence, not predictions
+- Research-priority rankings explain their factors and are never buy/sell signals
+- Missing or failed sources produce explicit status screens; the app has no runtime fixture fallback
+- Historical claims reflect retrieved coverage rather than a fixed ten-year promise
 
-The included provider is deterministic prototype data. An Apify-ready ingestion service now lives in `backend/`; it keeps the Apify token server-side, runs Ryan Clinton's `congress-stock-tracker` Actor, stores raw source payloads for audits, preserves filing-only records, and exposes normalized disclosures to the iOS client. Production deployment still requires an Apify account with Actor access, licensed market/social feeds, legal review, and verification of data-use rights.
+## Architecture
 
-See [the architecture note](docs/architecture.md) for the production ingestion boundary and compliance posture.
+The iOS app consumes one normalized endpoint from the Cloudflare Worker:
 
-## Open the project
+```text
+GET /v1/snapshot
+```
 
-Open `Consigliere.xcodeproj` in Xcode 15 or newer and run the `Consigliere` scheme on iOS 17 or newer.
+The Worker stores normalized records and raw provider payloads in D1. Its adapters cover:
 
-If Xcode has never been launched on the machine, accept Apple’s Xcode license before running command-line builds.
+- Official House filing metadata from the Clerk's annual ZIP index and a compliant Senate eFD collector
+- Optional FMP reconciliation for structured congressional transactions
+- Licensed Truth Social monitoring
+- Licensed Twelve Data market data with attribution
 
-The project is generated with [XcodeGen](https://github.com/yonaskolb/XcodeGen):
+Official filings remain canonical provenance. Filing-only records are preserved separately and are not represented as trades.
+
+## Local setup
+
+Open `Consigliere.xcodeproj` in Xcode 15 or newer and run the `Consigliere` scheme on iOS 17 or newer. The project is generated with XcodeGen:
 
 ```sh
 xcodegen generate
 ```
 
-## Apify ingestion setup
+Set `CONSILIERE_API_BASE_URL` to a migrated, configured Worker deployment. If it is absent or the service fails, Consigliere shows an explicit live-source error and never substitutes sample data.
 
-The production backend is deployed at `https://consigliere-ingestion.chinonsoobeta.workers.dev`. It is a Cloudflare Worker with a D1 database and a cost-conscious six-hour scheduled sync. It invokes `ryanclinton/congress-stock-tracker` through Apify's synchronous Actor API. Do not put the Apify token in Xcode or commit `.dev.vars`.
+For the Worker:
 
-1. In `backend/`, run `npm install` and `npx wrangler d1 create consigliere-data`.
-2. Replace the placeholder `database_id` in `backend/wrangler.toml` and apply the D1 migration.
-3. Store credentials with `npx wrangler secret put APIFY_API_TOKEN` and `npx wrangler secret put SYNC_TOKEN`.
-4. Deploy the Worker, then set the Xcode build setting `CONSILIERE_API_BASE_URL` to its HTTPS origin.
+```sh
+cd backend
+npm install
+npx wrangler d1 migrations apply consigliere-data --local
+npx wrangler dev
+```
 
-Without that base URL, the iOS app deliberately remains on bundled prototype data. The scheduled Actor input looks back three days, uses watchlist mode, limits output to 200 records, and enables a residential proxy for Senate reliability. The authenticated `/internal/backfill` route supports explicit windows, but this Actor limits an individual run to 730 days and 1,000 results. It cannot by itself satisfy the complete ten-year-history requirement; older history will need archival imports or another source. Filing-only and metadata-only results are stored separately at `/v1/source-filings` instead of being represented as stock trades.
+Copy `.dev.vars.example` to `.dev.vars` and configure only the sources you are licensed to use. Production credentials must be stored with `wrangler secret put`.
+
+Apply every D1 migration before deploying a Worker revision. The sync path uses per-provider leases and writes an auditable `sync_runs` record, so overlapping scheduled and manual runs do not duplicate work.
+
+## Publishing and data rights
+
+Consigliere is positioned as a public-interest news and research publisher. Public release still requires legal review confirming that storage, analysis, citation, and mobile display comply with the House/Senate disclosure rules and every market/social-data agreement. Free personal-use API plans are not assumed to permit redistribution.
 
 ## Disclaimer
 
-Consigliere is an informational research tool. Nothing in the app constitutes investment advice, a recommendation, or an offer to buy or sell a security.
+Consigliere is an informational research publication. Nothing in the app constitutes investment advice, a recommendation, or an offer to buy or sell a security.

@@ -1,4 +1,7 @@
-APIFY_API_TOKEN=replace-with-a-development-token
 SYNC_TOKEN=replace-with-a-long-random-value
-APIFY_BASE_URL=https://api.apify.com
-APIFY_ACTOR_ID=ryanclinton~congress-stock-tracker
+SENATE_EFD_FEED_URL=https://your-compliant-senate-collector.example/feed
+FMP_API_KEY=optional-reconciliation-key
+TWELVE_DATA_API_KEY=licensed-market-data-key
+TRUTH_API_URL=https://licensed-truth-api.example/posts
+TRUTH_API_TOKEN=licensed-truth-api-token
+PUBLISHER_USER_AGENT=Consigliere/1.0 public-interest research contact: research@example.com

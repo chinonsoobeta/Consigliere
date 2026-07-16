@@ -1,5 +1,5 @@
 {
-  "name": "consigliere-apify-ingestion",
+  "name": "consigliere-intelligence-ingestion",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,5 +11,8 @@
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
   }
 }

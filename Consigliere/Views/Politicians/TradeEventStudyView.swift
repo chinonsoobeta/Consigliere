@@ -36,6 +36,7 @@ struct TradeEventStudyView: View {
                     windows
                 }
                 dates
+                whyItMatters
                 methodology
                 Link(destination: trade.sourceURL) { Label("event.openSource", systemImage: "arrow.up.right.square") }.consigliereCard()
                 DisclaimerBanner()
@@ -115,6 +116,21 @@ struct TradeEventStudyView: View {
             HStack { Text("study.disclosureLag").foregroundStyle(.secondary); Spacer(); Text("\(trade.disclosureLagDays) days").font(.subheadline.monospacedDigit()) }
             HStack { Text("study.owner").foregroundStyle(.secondary); Spacer(); Text(trade.owner.label) }
         }.consigliereCard()
+    }
+
+    private var whyItMatters: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Why it matters", systemImage: "lightbulb").font(.headline)
+            Text(trade.whyItMatters.isEmpty
+                ? "This filing is presented as newly public research information, not a real-time trade."
+                : trade.whyItMatters)
+            ForEach(trade.rankingReasons, id: \.self) { reason in
+                Label(reason, systemImage: "checkmark.circle").font(.caption)
+            }
+            Text("Research priority \(trade.rankingScore, format: .percent.precision(.fractionLength(0)))")
+                .font(.caption.weight(.semibold)).foregroundStyle(ConsigliereTheme.gold)
+        }
+        .consigliereCard()
     }
 
     private func row(_ label: LocalizedStringKey, _ date: Date) -> some View {

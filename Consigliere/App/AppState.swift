@@ -4,19 +4,20 @@ import SwiftUI
 final class AppState: ObservableObject {
     @Published private(set) var instruments: [MarketInstrument] = []
     @Published private(set) var events: [MarketEvent] = []
-    @Published private(set) var holdings: [PortfolioHolding] = []
     @Published private(set) var politicians: [Politician] = []
     @Published private(set) var disclosures: [DisclosureTrade] = []
-    @Published private(set) var modelPortfolios: [PoliticianModelPortfolio] = []
+    @Published private(set) var sourceHealth: [SourceHealth] = []
+    @Published private(set) var availableCoverage: [DisclosureCoverageSummary] = []
     @Published private(set) var disclosureLoadError: String?
     @Published var isLoading = false
     @Published var selectedRegion: MarketRegion = .northAmerica
 
     @AppStorage("appearance") private var storedAppearance = Appearance.system.rawValue
     @AppStorage("language") private var storedLanguage = AppLanguage.usEnglish.rawValue
-    @AppStorage("watchlist") private var storedWatchlist = "SPX,TSX,WTI"
+    @AppStorage("watchlist") private var storedWatchlist = "SPY,QQQ,DIA"
 
     private let provider: any IntelligenceProvider
+    private var hasLoaded = false
 
     init(provider: any IntelligenceProvider = ProviderFactory.makeDefault()) {
         self.provider = provider
@@ -51,33 +52,33 @@ final class AppState: ObservableObject {
             }
     }
 
-    var portfolioSummary: PortfolioSummary {
-        AnalysisEngine.summarize(holdings: holdings, instruments: instruments)
-    }
-
     func load(force: Bool = false) async {
         guard !isLoading else { return }
-        guard force || instruments.isEmpty || disclosures.isEmpty else { return }
+        guard force || !hasLoaded else { return }
         isLoading = true
         defer { isLoading = false }
         disclosureLoadError = nil
 
-        async let loadedInstruments = provider.instruments()
-        async let loadedEvents = provider.events()
-        async let loadedHoldings = provider.holdings()
-        async let loadedPoliticians = provider.politicians()
-        async let loadedDisclosures = provider.disclosures()
-        async let loadedModelPortfolios = provider.modelPortfolios()
-
-        if let value = try? await loadedInstruments { instruments = value }
-        if let value = try? await loadedEvents { events = value.sorted { $0.publishedAt > $1.publishedAt } }
-        if let value = try? await loadedHoldings { holdings = value }
-        if let value = try? await loadedPoliticians { politicians = value }
-        if let value = try? await loadedModelPortfolios { modelPortfolios = value }
         do {
-            disclosures = try await loadedDisclosures
+            let snapshot = try await provider.snapshot()
+            instruments = snapshot.instruments
+            events = snapshot.events.sorted {
+                if $0.rankingScore == $1.rankingScore { return $0.publishedAt > $1.publishedAt }
+                return $0.rankingScore > $1.rankingScore
+            }
+            politicians = snapshot.politicians
+            disclosures = snapshot.disclosures
+            sourceHealth = snapshot.sourceHealth
+            availableCoverage = snapshot.coverage
+            hasLoaded = true
         } catch {
             disclosureLoadError = error.localizedDescription
+            instruments = []
+            events = []
+            politicians = (try? CongressRosterLoader.load()) ?? []
+            disclosures = []
+            sourceHealth = []
+            availableCoverage = []
         }
     }
 
@@ -97,12 +98,8 @@ final class AppState: ObservableObject {
         disclosures.filter { $0.politicianID == politician.id }.count
     }
 
-    func coverage(for politician: Politician) -> [DisclosureCoverageYear] {
-        PoliticianAnalytics.coverage(for: politician, trades: disclosures(for: politician))
-    }
-
-    func modelPortfolio(for politician: Politician) -> PoliticianModelPortfolio? {
-        modelPortfolios.first { $0.politicianID == politician.id }
+    func coverage(for politician: Politician) -> DisclosureCoverageSummary? {
+        availableCoverage.first { $0.chamber == politician.chamber.rawValue }
     }
 }
 

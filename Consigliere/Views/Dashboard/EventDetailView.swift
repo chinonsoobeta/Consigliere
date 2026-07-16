@@ -18,6 +18,7 @@ struct EventDetailView: View {
                 sourceCard
                 if let instrument = reactedInstrument { reactionChart(instrument) }
                 analysisCard
+                rankingCard
                 methodology
                 DisclaimerBanner()
             }
@@ -76,6 +77,20 @@ struct EventDetailView: View {
         .consigliereCard()
     }
 
+    private var rankingCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Why this ranked", systemImage: "list.number").font(.headline)
+            Text(event.rankingScore, format: .percent.precision(.fractionLength(0)))
+                .font(.title2.bold().monospacedDigit())
+            ForEach(event.rankingReasons, id: \.self) { reason in
+                Label(reason, systemImage: "checkmark.circle").font(.subheadline)
+            }
+            Text("This score prioritizes research attention. It is not a trading recommendation.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+        .consigliereCard()
+    }
+
     private var methodology: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("event.methodology").font(.headline)
@@ -93,4 +108,3 @@ struct FlowLayout: View {
         }
     }
 }
-

@@ -1,23 +1,31 @@
-# Architecture and production data boundary
+# Live intelligence architecture
 
-The prototype deliberately separates the SwiftUI client from data acquisition. `IntelligenceProvider` is the client-facing boundary; `MockIntelligenceProvider` supplies deterministic preview data today. When `CONSILIERE_API_BASE_URL` is configured, `HybridIntelligenceProvider` obtains disclosures from the Consigliere backend while retaining prototype market data during development.
+`IntelligenceProvider` is a live-only boundary. The production app requests a unified snapshot from the Cloudflare Worker; an absent URL, failed request, or unconfigured source produces an explicit error state. Synthetic records exist only inside tests.
 
-The `backend/` Cloudflare Worker is the Apify credential and normalization boundary. A scheduled job invokes Ryan Clinton's `congress-stock-tracker` Actor, stores normalized rows in D1, and preserves each raw Actor record. The mobile client receives only Consigliere's normalized contract; it never receives the Apify token. The client resolves Actor member names against the bundled Congress.gov roster and accepts only unique matches to stable Bioguide IDs. Failed backend requests fall back to fixtures in debug builds, while successful empty responses remain empty and are not replaced with invented records.
+The Worker owns credentials, retrieval, normalization, ranking, provenance, and source health. D1 retains official filing metadata, structured disclosures, social posts, market instruments, raw provider payloads, retrieval timestamps, and sync outcomes. Per-provider leases prevent overlapping scheduled/manual syncs, and bounded D1 batches avoid excessive serial writes.
 
-The initial adapter uses the Actor's full output profile and consumes only `trade` records as transactions. `filing` records—especially Senate or scanned reports without machine-readable transaction rows—are retained in `source_filings` with their extraction status and source URL. Unmapped names are excluded from politician profiles rather than guessed. The Actor's maximum 730-day lookback is suitable for forward collection and recent backfill, not the full ten-year requirement; archival coverage remains a separate ingestion concern.
+## Source policy
 
-For production, a backend should implement provider adapters for:
+Official House and Senate filings are canonical provenance. The House collector reads the official annual disclosure index and preserves PTR documents as filing records. Senate ingestion requires a separately operated compliant eFD collector endpoint because the public search workflow is session-oriented. A filing that cannot be parsed remains a filing; it is never converted into an inferred trade.
 
-1. House and Senate periodic transaction reports, retaining source documents, amendments, transaction dates, filing dates, and retrieval timestamps.
-2. A licensed Truth Social monitor with webhook or streaming delivery, retaining original URLs, edits, deletions, publication times, and measured retrieval latency.
-3. Licensed U.S. and Canadian market data with explicit mobile redistribution rights, plus assessment publishers for non-exchange crude grades.
+FMP may reconcile and structure transactions when configured, but every displayed record must link to the official filing. Truth Social monitoring and market quotes require licensed publisher/display access. Twelve Data attribution is retained in the normalized market record. Physical crude assessments remain unavailable until a suitable display license is configured.
 
-The backend should normalize these sources into the app’s `MarketInstrument` and `MarketEvent` contracts. Processing must be idempotent, replayable, and source-audited. Every response must carry freshness and provenance; the app must never silently label delayed or assessed data as live.
+## Intelligence contract
 
-The politician directory is keyed by Congress.gov Bioguide ID. Production synchronization should refresh the sitting-member roster daily and preserve service intervals. House historical downloads currently span more than ten years, while Senate public-inspection retention can be shorter; the API must therefore return an explicit per-member, per-year coverage state instead of treating a missing source as zero transactions.
+`GET /v1/snapshot` returns:
 
-Trade event studies use trading-day windows of −30, −10, −5, −1, +1, +5, +10, +30, and +90. Production calculations must use adjusted prices and compare raw, broad-market, sector, and abnormal returns. Both the transaction timestamp and public filing timestamp are retained.
+- `instruments`: licensed quotes with source timestamps and freshness
+- `intelligence`: ranked disclosure and political items
+- `disclosures`: normalized transactions with official links
+- `sourceHealth`: per-provider availability and last successful sync
+- `coverage`: earliest/latest available normalized records by chamber
 
-Politician Model Portfolios expose two series: a reported-holdings reconstruction and a point-in-time public-information simulation that rebalances only when filings were public. Both remain hypothetical and must disclose estimated weighting, ownership, stale reports, options treatment, and unavailable source years.
+Each intelligence item includes a research-priority score, human-readable ranking reasons, a source URL, confidence, publication/retrieval timestamps, and a rules-derived “Why it matters” explanation. The latest licensed session move may be shown as broad current context; it is not labelled as a timestamp-aligned event reaction. True reaction windows remain hidden until historical intraday data is attached.
 
-Portfolio features remain analytical: the client may calculate concentration and event exposure for user-selected hypothetical holdings, but neither the client nor backend should emit buy, sell, hold, suitability, target-price, or execution instructions.
+## Ranking
+
+Disclosure ranking weights public recency (30%), financial materiality (25%), political relevance (20%), current licensed market context (15%), and source confidence (10%). Superseded and ambiguous records receive penalties. The score prioritizes research attention and must never be presented as an investment signal.
+
+## Coverage and failure behavior
+
+The app makes no fixed ten-year claim. Coverage is computed from available normalized records and labelled accordingly. Source outages, missing licenses, extraction failures, and empty datasets are visible to users with last-sync metadata and retry behavior; no fixture fallback is permitted.

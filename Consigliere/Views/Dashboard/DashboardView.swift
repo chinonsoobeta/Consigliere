@@ -2,15 +2,35 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var scope = BriefScope.all
+
+    enum BriefScope: String, CaseIterable, Identifiable {
+        case all, disclosures, politics, markets
+        var id: String { rawValue }
+        var title: String { rawValue.capitalized }
+    }
+
+    private var briefEvents: [MarketEvent] {
+        appState.events.filter { event in
+            switch scope {
+            case .all: true
+            case .disclosures: event.source == .houseDisclosure || event.source == .senateDisclosure
+            case .politics: event.source == .truthSocial
+            case .markets: event.reaction != nil
+            }
+        }
+    }
 
     private var primaryMarkets: [MarketInstrument] {
-        let symbols = ["SPX", "NDX", "DJI", "TSX", "TX60", "WTI", "WCS"]
-        return symbols.compactMap { symbol in appState.instruments.first { $0.symbol == symbol } }
+        let symbols = ["SPY", "QQQ", "DIA", "IXIC", "TSX:TSX"]
+        let preferred = symbols.compactMap { symbol in appState.instruments.first { $0.symbol == symbol } }
+        return preferred.isEmpty
+            ? Array(appState.instruments.filter { $0.region == .northAmerica }.prefix(7))
+            : preferred
     }
 
     private var globalContext: [MarketInstrument] {
-        let symbols = ["STOXX", "FTSE", "DAX", "N225", "HSI", "MSCIW", "DXY", "GOLD"]
-        return symbols.compactMap { symbol in appState.instruments.first { $0.symbol == symbol } }
+        Array(appState.instruments.filter { $0.region != .northAmerica }.prefix(8))
     }
 
     var body: some View {
@@ -19,8 +39,12 @@ struct DashboardView: View {
                 LazyVStack(alignment: .leading, spacing: 24) {
                     header
                     DisclaimerBanner()
-                    marketSection("dashboard.northAmerica", subtitle: "dashboard.northAmerica.subtitle", instruments: primaryMarkets)
-                    marketSection("dashboard.globalContext", subtitle: "dashboard.globalContext.subtitle", instruments: globalContext)
+                    if !primaryMarkets.isEmpty {
+                        marketSection("dashboard.northAmerica", subtitle: "dashboard.northAmerica.subtitle", instruments: primaryMarkets)
+                    }
+                    if !globalContext.isEmpty {
+                        marketSection("dashboard.globalContext", subtitle: "dashboard.globalContext.subtitle", instruments: globalContext)
+                    }
                     eventFeed
                 }
                 .padding(.horizontal)
@@ -42,13 +66,6 @@ struct DashboardView: View {
                 Text("dashboard.subtitle").font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()
-            Button(action: {}) {
-                Image(systemName: "bell.fill")
-                    .font(.headline)
-                    .frame(width: 42, height: 42)
-                    .background(.regularMaterial, in: Circle())
-            }
-            .accessibilityLabel("alerts")
         }
         .padding(.top, 10)
     }
@@ -74,14 +91,33 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("dashboard.signalFeed").font(.title3.weight(.bold))
-                    Text("dashboard.signalFeed.subtitle").font(.caption).foregroundStyle(.secondary)
+                    Text("Today’s Intelligence Brief").font(.title3.weight(.bold))
+                    Text("Ranked by freshness, materiality, political relevance, market context, and evidence quality.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text("dashboard.observedOnly").font(.caption2.weight(.medium)).foregroundStyle(.secondary)
             }
-            ForEach(appState.events) { event in
-                NavigationLink(value: event) { EventCard(event: event) }.buttonStyle(.plain)
+            Picker("Brief scope", selection: $scope) {
+                ForEach(BriefScope.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            if let error = appState.disclosureLoadError {
+                SourceUnavailableView(
+                    title: "Live intelligence unavailable",
+                    message: error,
+                    retry: { Task { await appState.load(force: true) } }
+                )
+            } else if briefEvents.isEmpty {
+                SourceUnavailableView(
+                    title: "No verified intelligence yet",
+                    message: "Consigliere does not substitute fixtures or inferred records. Check source status or refresh.",
+                    retry: { Task { await appState.load(force: true) } }
+                )
+            } else {
+                ForEach(briefEvents) { event in
+                    NavigationLink(value: event) { EventCard(event: event) }.buttonStyle(.plain)
+                }
             }
         }
     }

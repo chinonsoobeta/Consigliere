@@ -6,8 +6,7 @@ struct PoliticianProfileView: View {
     let politician: Politician
 
     private var trades: [DisclosureTrade] { appState.disclosures(for: politician) }
-    private var coverage: [DisclosureCoverageYear] { appState.coverage(for: politician) }
-    private var portfolio: PoliticianModelPortfolio? { appState.modelPortfolio(for: politician) }
+    private var coverage: DisclosureCoverageSummary? { appState.coverage(for: politician) }
 
     var body: some View {
         ScrollView {
@@ -16,7 +15,6 @@ struct PoliticianProfileView: View {
                 DisclosureMethodologyBanner()
                 if appState.disclosureLoadError != nil { disclosureErrorView }
                 coverageSection
-                modelPortfolioSection
                 tradesSection
                 DisclaimerBanner()
             }.padding()
@@ -56,47 +54,25 @@ struct PoliticianProfileView: View {
 
     private var coverageSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("politician.coverage").font(.title3.bold())
-            Text("politician.coverage.subtitle").font(.caption).foregroundStyle(.secondary)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 9) {
-                    ForEach(coverage) { year in
-                        VStack(spacing: 7) {
-                            Text(String(year.year)).font(.caption.weight(.semibold))
-                            Image(systemName: year.status.icon).foregroundStyle(year.status.color)
-                            Text(year.status.label).font(.caption2).multilineTextAlignment(.center).lineLimit(2).frame(width: 74)
-                        }
-                        .padding(10).frame(height: 94)
-                        .background(year.status.color.opacity(0.09), in: RoundedRectangle(cornerRadius: 13))
+            Text("Available disclosure coverage").font(.title3.bold())
+            Text("Coverage reflects records currently retrieved and normalized; it is not a claim of complete ten-year history.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let coverage {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(coverage.records) records").font(.headline.monospacedDigit())
+                        Text([coverage.earliest, coverage.latest].compactMap { $0 }.joined(separator: " – "))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
+                    Spacer()
+                    Label("Available records", systemImage: "calendar.badge.checkmark")
+                        .font(.caption).foregroundStyle(ConsigliereTheme.gold)
                 }
+            } else {
+                Text("No verified coverage metadata is available for this chamber.")
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
         }.consigliereCard()
-    }
-
-    @ViewBuilder private var modelPortfolioSection: some View {
-        if let portfolio {
-            NavigationLink { PoliticianModelPortfolioView(politician: politician, portfolio: portfolio) } label: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack { Label("model.title", systemImage: "chart.pie.fill").font(.headline); Spacer(); Image(systemName: "chevron.right") }
-                    Text("model.profileDescription").font(.subheadline).foregroundStyle(.secondary)
-                    HStack {
-                        metric(portfolio.positions.count.formatted(), "model.positions")
-                        Divider().frame(height: 32)
-                        metric(portfolio.asOfDate.formatted(date: .abbreviated, time: .omitted), "model.asOf")
-                    }
-                }.foregroundStyle(.primary).consigliereCard()
-            }.buttonStyle(.plain)
-        } else {
-            VStack(alignment: .leading, spacing: 9) {
-                Label("model.title", systemImage: "chart.pie").font(.headline)
-                Text("model.unavailable").font(.subheadline).foregroundStyle(.secondary)
-            }.consigliereCard()
-        }
-    }
-
-    private func metric(_ value: String, _ label: LocalizedStringKey) -> some View {
-        VStack(alignment: .leading) { Text(value).font(.headline); Text(label).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var tradesSection: some View {

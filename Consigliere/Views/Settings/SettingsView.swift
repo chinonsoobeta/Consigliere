@@ -22,14 +22,35 @@ struct SettingsView: View {
                     }
                 }
                 Section("settings.data") {
-                    Label("settings.prototype", systemImage: "testtube.2").foregroundStyle(.indigo)
+                    ForEach(appState.sourceHealth) { source in
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                Label(source.displayName, systemImage: "server.rack")
+                                Spacer()
+                                Text(source.status.rawValue.capitalized)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(source.status.color)
+                            }
+                            if let lastSuccess = source.lastSuccessAt {
+                                Text("Last successful sync \(lastSuccess.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            if let message = source.message, !message.isEmpty {
+                                Text(message).font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    if appState.sourceHealth.isEmpty {
+                        Label("Live sources unavailable", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
                     NavigationLink("settings.sources") { MethodologyView() }
                 }
                 Section("settings.legal") {
                     Text("disclaimer.full").font(.footnote).foregroundStyle(.secondary)
                     Link("settings.privacy", destination: URL(string: "https://github.com/chinonsoobeta/Consigliere")!)
                 }
-                Section { Text("Version 0.1.0 · Prototype").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity) }
+                Section { Text("Version 0.2.0 · Public-interest research").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity) }
             }
             .navigationTitle("settings.title")
         }

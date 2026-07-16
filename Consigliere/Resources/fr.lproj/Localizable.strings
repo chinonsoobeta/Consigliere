@@ -13,12 +13,11 @@
 "disclaimer.short" = "Information et recherche uniquement — aucun conseil en placement.";
 "freshness.live" = "En direct";
 "freshness.delayed" = "Différé";
-"freshness.prototype" = "Prototype";
 "freshness.assessment" = "Évaluation";
 "freshness.stale" = "Périmé";
-"impact.low" = "Réaction faible";
-"impact.moderate" = "Réaction modérée";
-"impact.elevated" = "Réaction élevée";
+"impact.low" = "Priorité faible";
+"impact.moderate" = "Priorité modérée";
+"impact.elevated" = "Priorité élevée";
 "search.title" = "Marchés";
 "search.prompt" = "Symbole, société, indice ou pétrole brut";
 "search.all" = "Tous";
@@ -37,7 +36,6 @@
 "appearance.dark" = "Sombre";
 "settings.language" = "Langue";
 "settings.data" = "Données et méthodologie";
-"settings.prototype" = "Données de prototype actives";
 "settings.sources" = "Sources et méthodologie";
 "settings.legal" = "Mentions légales";
 "event.title" = "Analyse de l’événement";
@@ -59,7 +57,6 @@
 "search.disclosedPoliticians %lld" = "%lld membres avec déclarations";
 "chamber.house" = "Chambre";
 "chamber.senate" = "Sénat";
-"politician.coverage" = "Couverture des déclarations sur dix ans";
 "politician.disclosures" = "Déclarations boursières";
 "politician.noTrades" = "Aucune opération normalisée disponible";
 "coverage.complete" = "Complète";

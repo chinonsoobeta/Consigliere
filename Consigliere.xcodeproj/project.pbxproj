@@ -7,14 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		01CEEF88658D4B668312EF0F /* PoliticianModelPortfolioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866D50260C9A71DB8736C6CF /* PoliticianModelPortfolioView.swift */; };
 		0A825D042F5EDEE4949F0FF6 /* ConsigliereAPIProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43432B8C7A737DDC87136EE /* ConsigliereAPIProviderTests.swift */; };
 		0F590FD5345F26B95357DC6D /* TradeEventStudyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34305D1D24CAD54D6A3E2F9A /* TradeEventStudyView.swift */; };
 		24362DA2FBC99183C34C9C58 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = FB6ACE4C1B2F8467AE7B6CF1 /* Localizable.strings */; };
 		268D38A8E4D4459F94B10D08 /* IntelligenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C629C7275407F7D8D0957BF6 /* IntelligenceProvider.swift */; };
-		2A8EC92A426EECF16EB6B0DA /* PoliticianPrototypeData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 329EE55048CBF9445B76D9BC /* PoliticianPrototypeData.swift */; };
 		3BB35364DF9A1136CAC31FF9 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F47D9161BDBAF0396CF6FC6 /* EventDetailView.swift */; };
 		463CC1C1EA93E8A88F340234 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5E9D9825D80F73ACA27B73 /* RootTabView.swift */; };
+		4835E085D2DAB2983FC088C1 /* CongressRosterLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426F85803DEDB3B4E77884ED /* CongressRosterLoader.swift */; };
+		4B3E5C8D207EAC40B4525E00 /* IntelligenceLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4B382743FC23DB92CFAE80 /* IntelligenceLibraryView.swift */; };
 		542C9106D92012908E39249D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C905C74CDACF1891737C5652 /* SettingsView.swift */; };
 		54EE4706875A4913E1CBF0AC /* ConsigliereApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 708FD4DC10A4B1E2A69D7619 /* ConsigliereApp.swift */; };
 		5550DB4B803463BA362150A2 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E231171F57185B2972863D64 /* Theme.swift */; };
@@ -30,7 +30,6 @@
 		D391737105C5160793ECAAB9 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB3CF7A4AEF4FC7FB13ED979 /* DashboardView.swift */; };
 		D51BA1250FAF078CA707CCED /* PoliticianModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C42F11098DEBB062E6000036 /* PoliticianModels.swift */; };
 		DA31A93D02C3FB24A6487EE2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4017D38E49D6529E2422C4B6 /* Assets.xcassets */; };
-		E02AECAFEADA6AEDF5898404 /* PortfolioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7648AD9DFEC60876D03EF13 /* PortfolioView.swift */; };
 		FFABC5AC066C8D4298BDF0FA /* PoliticianAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F0238A7BF8A0ECA1DE46E2E /* PoliticianAnalyticsTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -49,9 +48,9 @@
 		144A5424F78E03BC86D6B277 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		16A9B2D2D548BD2CE264ECAC /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Localizable.strings; sourceTree = "<group>"; };
 		2846CBCCD3BA67120C83D5DB /* InstrumentSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentSearchView.swift; sourceTree = "<group>"; };
-		329EE55048CBF9445B76D9BC /* PoliticianPrototypeData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoliticianPrototypeData.swift; sourceTree = "<group>"; };
 		34305D1D24CAD54D6A3E2F9A /* TradeEventStudyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradeEventStudyView.swift; sourceTree = "<group>"; };
 		4017D38E49D6529E2422C4B6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		426F85803DEDB3B4E77884ED /* CongressRosterLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CongressRosterLoader.swift; sourceTree = "<group>"; };
 		4F0238A7BF8A0ECA1DE46E2E /* PoliticianAnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoliticianAnalyticsTests.swift; sourceTree = "<group>"; };
 		54ECC6CD9213A025AC5C1347 /* en-CA */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en-CA"; path = "en-CA.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		5A2E5E04CA325725021C5919 /* current-politicians.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "current-politicians.json"; sourceTree = "<group>"; };
@@ -60,12 +59,10 @@
 		67EF0093BDC67FB6D8EE53DC /* ConsigliereAPIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsigliereAPIProvider.swift; sourceTree = "<group>"; };
 		708FD4DC10A4B1E2A69D7619 /* ConsigliereApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsigliereApp.swift; sourceTree = "<group>"; };
 		7F47D9161BDBAF0396CF6FC6 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
-		866D50260C9A71DB8736C6CF /* PoliticianModelPortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoliticianModelPortfolioView.swift; sourceTree = "<group>"; };
 		8CAC39EFEA588799DDB90CBE /* PoliticianProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoliticianProfileView.swift; sourceTree = "<group>"; };
 		9C5E9D9825D80F73ACA27B73 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
 		AB5865330529207C888132BE /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		B332EBC39813171731180EB8 /* Consigliere.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Consigliere.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B7648AD9DFEC60876D03EF13 /* PortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioView.swift; sourceTree = "<group>"; };
 		BA4E8C53238ACD4F46FA0463 /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
 		C42F11098DEBB062E6000036 /* PoliticianModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoliticianModels.swift; sourceTree = "<group>"; };
 		C629C7275407F7D8D0957BF6 /* IntelligenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceProvider.swift; sourceTree = "<group>"; };
@@ -75,9 +72,18 @@
 		E778A3D2EC9753CF6B36B44F /* AnalysisEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisEngineTests.swift; sourceTree = "<group>"; };
 		F67DC7AB8B01F3A81996351E /* ConsigliereTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ConsigliereTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FB3CF7A4AEF4FC7FB13ED979 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		FF4B382743FC23DB92CFAE80 /* IntelligenceLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceLibraryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		0EEAAABD9C63285AD72CADF7 /* Intelligence */ = {
+			isa = PBXGroup;
+			children = (
+				FF4B382743FC23DB92CFAE80 /* IntelligenceLibraryView.swift */,
+			);
+			path = Intelligence;
+			sourceTree = "<group>";
+		};
 		3A3BC132ED118E1751B2F705 /* Consigliere */ = {
 			isa = PBXGroup;
 			children = (
@@ -155,14 +161,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		8691C6B07774DFABD6EFFF69 /* Portfolio */ = {
-			isa = PBXGroup;
-			children = (
-				B7648AD9DFEC60876D03EF13 /* PortfolioView.swift */,
-			);
-			path = Portfolio;
-			sourceTree = "<group>";
-		};
 		8982D95CD7618524DD2F6CAA /* Search */ = {
 			isa = PBXGroup;
 			children = (
@@ -192,7 +190,6 @@
 		CA1CA2EBF3542D25B05049F5 /* Politicians */ = {
 			isa = PBXGroup;
 			children = (
-				866D50260C9A71DB8736C6CF /* PoliticianModelPortfolioView.swift */,
 				8CAC39EFEA588799DDB90CBE /* PoliticianProfileView.swift */,
 				34305D1D24CAD54D6A3E2F9A /* TradeEventStudyView.swift */,
 			);
@@ -210,9 +207,9 @@
 		E10991B6B3CE4043636FB0C0 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				426F85803DEDB3B4E77884ED /* CongressRosterLoader.swift */,
 				67EF0093BDC67FB6D8EE53DC /* ConsigliereAPIProvider.swift */,
 				C629C7275407F7D8D0957BF6 /* IntelligenceProvider.swift */,
-				329EE55048CBF9445B76D9BC /* PoliticianPrototypeData.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -231,8 +228,8 @@
 				9C5E9D9825D80F73ACA27B73 /* RootTabView.swift */,
 				F008B37D62B353A8CFF5CE89 /* Components */,
 				5A7B0E88DDC46DA146800AA9 /* Dashboard */,
+				0EEAAABD9C63285AD72CADF7 /* Intelligence */,
 				CA1CA2EBF3542D25B05049F5 /* Politicians */,
-				8691C6B07774DFABD6EFFF69 /* Portfolio */,
 				8982D95CD7618524DD2F6CAA /* Search */,
 				711D9BF122A6AA0586F6BA0B /* Settings */,
 			);
@@ -339,19 +336,18 @@
 			buildActionMask = 2147483647;
 			files = (
 				76694328DEE16202C12E6D6A /* AppState.swift in Sources */,
+				4835E085D2DAB2983FC088C1 /* CongressRosterLoader.swift in Sources */,
 				5E5A4F00B79474D6DFD88389 /* ConsigliereAPIProvider.swift in Sources */,
 				54EE4706875A4913E1CBF0AC /* ConsigliereApp.swift in Sources */,
 				D391737105C5160793ECAAB9 /* DashboardView.swift in Sources */,
 				3BB35364DF9A1136CAC31FF9 /* EventDetailView.swift in Sources */,
 				AE09C70CE0F531F6185F747E /* InstrumentDetailView.swift in Sources */,
 				62AFCCD9337B0BF4B666A62F /* InstrumentSearchView.swift in Sources */,
+				4B3E5C8D207EAC40B4525E00 /* IntelligenceLibraryView.swift in Sources */,
 				268D38A8E4D4459F94B10D08 /* IntelligenceProvider.swift in Sources */,
 				A70416A056E83FF0889559A7 /* Models.swift in Sources */,
-				01CEEF88658D4B668312EF0F /* PoliticianModelPortfolioView.swift in Sources */,
 				D51BA1250FAF078CA707CCED /* PoliticianModels.swift in Sources */,
 				A526CE691921FC240101AA91 /* PoliticianProfileView.swift in Sources */,
-				2A8EC92A426EECF16EB6B0DA /* PoliticianPrototypeData.swift in Sources */,
-				E02AECAFEADA6AEDF5898404 /* PortfolioView.swift in Sources */,
 				463CC1C1EA93E8A88F340234 /* RootTabView.swift in Sources */,
 				542C9106D92012908E39249D /* SettingsView.swift in Sources */,
 				AC6C2D6FA7E5C34CB5A22D7B /* SharedComponents.swift in Sources */,
@@ -476,10 +472,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CONSILIERE_API_BASE_URL = "https://consigliere-ingestion.chinonsoobeta.workers.dev";
+				CONSIGLIERE_API_BASE_URL = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Consigliere;
-				INFOPLIST_KEY_CONSIGLIERE_API_BASE_URL = "$(CONSILIERE_API_BASE_URL)";
+				INFOPLIST_KEY_CONSIGLIERE_API_BASE_URL = "$(CONSIGLIERE_API_BASE_URL)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -501,10 +497,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CONSILIERE_API_BASE_URL = "https://consigliere-ingestion.chinonsoobeta.workers.dev";
+				CONSIGLIERE_API_BASE_URL = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Consigliere;
-				INFOPLIST_KEY_CONSIGLIERE_API_BASE_URL = "$(CONSILIERE_API_BASE_URL)";
+				INFOPLIST_KEY_CONSIGLIERE_API_BASE_URL = "$(CONSIGLIERE_API_BASE_URL)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

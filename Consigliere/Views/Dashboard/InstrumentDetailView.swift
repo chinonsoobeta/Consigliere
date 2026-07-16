@@ -23,7 +23,15 @@ struct InstrumentDetailView: View {
                     .accessibilityLabel("watchlist.toggle")
                 }
                 HStack(alignment: .firstTextBaseline) { Text(instrument.formattedPrice).font(.title.bold()); ChangeLabel(value: instrument.changePercent) }
-                chart
+                if instrument.history.isEmpty {
+                    Label("Intraday history is not available from the configured quote feed.", systemImage: "chart.line.downtrend.xyaxis")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .consigliereCard()
+                } else {
+                    chart
+                }
                 metadata
                 if !relatedEvents.isEmpty {
                     Text("instrument.relatedEvents").font(.title3.bold())
@@ -51,6 +59,11 @@ struct InstrumentDetailView: View {
             row("instrument.exchange", value: instrument.exchange)
             row("instrument.currency", value: instrument.currency)
             row("instrument.updated", value: instrument.updatedAt.formatted(date: .omitted, time: .standard))
+            if let attribution = instrument.attribution {
+                row("Data source", value: attribution)
+            } else if let provider = instrument.provider {
+                row("Data source", value: provider)
+            }
             HStack { Text("instrument.status").foregroundStyle(.secondary); Spacer(); FreshnessBadge(freshness: instrument.freshness) }
         }.consigliereCard()
     }

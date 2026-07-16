@@ -25,13 +25,12 @@ enum InstrumentKind: String, Codable, CaseIterable {
 }
 
 enum DataFreshness: String, Codable {
-    case live, delayed, prototype, assessment, stale
+    case live, delayed, assessment, stale
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "freshness.\(rawValue)") }
     var color: Color {
         switch self {
         case .live: .green
         case .delayed: .orange
-        case .prototype: .indigo
         case .assessment: .blue
         case .stale: .red
         }
@@ -63,6 +62,8 @@ struct MarketInstrument: Identifiable, Hashable, Codable {
     let sector: String?
     let aliases: [String]
     let history: [PricePoint]
+    var provider: String? = nil
+    var attribution: String? = nil
 
     var formattedPrice: String {
         if kind == .yield { return price.formatted(.number.precision(.fractionLength(2))) + "%" }
@@ -115,8 +116,54 @@ struct MarketEvent: Identifiable, Hashable, Codable {
     let explanation: String
     let reaction: MarketReaction?
     let freshness: DataFreshness
+    let rankingScore: Double
+    let rankingReasons: [String]
 
     var retrievalLatency: TimeInterval { retrievedAt.timeIntervalSince(publishedAt) }
+}
+
+enum SourceAvailability: String, Codable {
+    case available, degraded, failed, unconfigured
+
+    var color: Color {
+        switch self {
+        case .available: ConsigliereTheme.positive
+        case .degraded: .orange
+        case .failed: .red
+        case .unconfigured: .secondary
+        }
+    }
+}
+
+struct SourceHealth: Identifiable, Hashable, Codable {
+    var id: String { provider }
+    let provider: String
+    let displayName: String
+    let status: SourceAvailability
+    let lastAttemptAt: Date?
+    let lastSuccessAt: Date?
+    let recordsSeen: Int
+    let message: String?
+    let coverageStart: String?
+    let coverageEnd: String?
+}
+
+struct DisclosureCoverageSummary: Identifiable, Hashable, Codable {
+    var id: String { chamber }
+    let chamber: String
+    let earliest: String?
+    let latest: String?
+    let records: Int
+    let completeness: String
+}
+
+struct IntelligenceSnapshot: Hashable {
+    let instruments: [MarketInstrument]
+    let events: [MarketEvent]
+    let politicians: [Politician]
+    let disclosures: [DisclosureTrade]
+    let sourceHealth: [SourceHealth]
+    let coverage: [DisclosureCoverageSummary]
 }
 
 struct PortfolioHolding: Identifiable, Hashable, Codable {

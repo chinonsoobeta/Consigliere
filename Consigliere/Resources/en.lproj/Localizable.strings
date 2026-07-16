@@ -27,15 +27,14 @@
 "instrument.differential" = "Physical differential";
 "freshness.live" = "Live";
 "freshness.delayed" = "Delayed";
-"freshness.prototype" = "Prototype";
 "freshness.assessment" = "Assessment";
 "freshness.stale" = "Stale";
 "source.truthSocial" = "Truth Social";
 "source.houseDisclosure" = "House disclosure";
 "source.senateDisclosure" = "Senate disclosure";
-"impact.low" = "Low reaction";
-"impact.moderate" = "Moderate reaction";
-"impact.elevated" = "Elevated reaction";
+"impact.low" = "Low priority";
+"impact.moderate" = "Moderate priority";
+"impact.elevated" = "Elevated priority";
 "event.title" = "Event analysis";
 "event.published" = "Published";
 "event.retrieved" = "Retrieved";
@@ -45,7 +44,7 @@
 "event.analysis" = "Analysis";
 "event.confidence" = "Extraction confidence";
 "event.methodology" = "How to read this";
-"event.methodology.body" = "Price windows are aligned to the source timestamp. Movement is descriptive and may reflect unrelated news, liquidity, or broader market conditions. Correlation does not establish causation.";
+"event.methodology.body" = "Current quote movement is broad context, not an event-window reaction. When timestamp-aligned price windows are available, they are labelled separately. Correlation does not establish causation.";
 "instrument.relatedEvents" = "Related events";
 "instrument.type" = "Instrument type";
 "instrument.exchange" = "Exchange or publisher";
@@ -64,7 +63,7 @@
 "portfolio.diagnostics" = "Research diagnostics";
 "portfolio.concentration" = "Largest sector concentration";
 "portfolio.concentration.high" = "This hypothetical portfolio is concentrated in one sector.";
-"portfolio.concentration.balanced" = "No single sector exceeds the prototype threshold.";
+"portfolio.concentration.balanced" = "No single sector exceeds the research threshold.";
 "portfolio.eventExposure" = "Political-event exposure";
 "portfolio.eventExposure.note" = "Share of holdings mentioned in the current event set.";
 "portfolio.diagnostics.disclaimer" = "Diagnostics describe the selected holdings. They are not suitability findings or recommendations.";
@@ -79,7 +78,6 @@
 "appearance.dark" = "Dark";
 "settings.language" = "Language";
 "settings.data" = "Data and methodology";
-"settings.prototype" = "Prototype data is active";
 "settings.sources" = "Sources and methodology";
 "settings.legal" = "Legal";
 "settings.privacy" = "Privacy and project information";
@@ -101,12 +99,11 @@
 "search.politicianPrompt" = "Politician, state, or party";
 "search.disclosedPoliticians %lld" = "%lld members with disclosures";
 "search.politicianResults %lld" = "%lld sitting members";
-"search.rosterSource" = "Current-member directory from Congress.gov. Disclosure counts reflect available normalized prototype records.";
+"search.rosterSource" = "Current-member directory from Congress.gov. Disclosure counts reflect verified records available from the live service.";
 "search.disclosures" = "disclosures";
 "chamber.house" = "House";
 "chamber.senate" = "Senate";
 "politician.servingSince %lld" = "Serving since %lld";
-"politician.coverage" = "Ten-year disclosure coverage";
 "politician.coverage.subtitle" = "Missing sources are distinguished from years with no reportable transactions.";
 "politician.disclosures" = "Stock disclosures";
 "politician.noTrades" = "No normalized trades available";
@@ -139,7 +136,7 @@
 "study.vsBenchmark" = "Abnormal";
 "study.disclosureLag" = "Disclosure lag";
 "study.owner" = "Reported owner";
-"study.methodology" = "Prototype returns demonstrate the event-study interface. Production calculations require split- and dividend-adjusted prices, market calendars, sector benchmarks, amendments, and licensed historical data. Correlation does not establish causation.";
+"study.methodology" = "Event studies appear only when licensed split- and dividend-adjusted prices, market calendars, sector benchmarks, and amendment-aware disclosure data are available. Correlation does not establish causation.";
 "study.marketDataUnavailable" = "Market analysis pending";
 "study.marketDataUnavailable.body" = "The disclosure is available, but adjusted historical prices have not yet been attached to this record.";
 "model.title" = "Politician Model Portfolio";

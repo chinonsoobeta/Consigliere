@@ -37,13 +37,10 @@ struct InstrumentSearchView: View {
     }
 
     private var politicianResults: [Politician] {
-        appState.politicians.filter { politician in
-            matchesPoliticianFilters(politician)
-        }
+        appState.politicians
+            .filter { appState.disclosureCount(for: $0) == 0 }
+            .filter(matchesPoliticianFilters)
         .sorted { lhs, rhs in
-            let leftCount = appState.disclosureCount(for: lhs)
-            let rightCount = appState.disclosureCount(for: rhs)
-            if leftCount != rightCount { return leftCount > rightCount }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
     }

@@ -28,35 +28,6 @@ struct Politician: Identifiable, Hashable, Codable {
     }
 }
 
-enum DisclosureCoverageStatus: String, Codable, CaseIterable {
-    case complete, partial, noReportableTransactions, sourceUnavailable, notServing
-    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "coverage.\(rawValue)") }
-    var color: Color {
-        switch self {
-        case .complete: ConsigliereTheme.positive
-        case .partial: .orange
-        case .noReportableTransactions: .blue
-        case .sourceUnavailable: .red
-        case .notServing: .secondary
-        }
-    }
-    var icon: String {
-        switch self {
-        case .complete: "checkmark.circle.fill"
-        case .partial: "circle.lefthalf.filled"
-        case .noReportableTransactions: "minus.circle.fill"
-        case .sourceUnavailable: "exclamationmark.triangle.fill"
-        case .notServing: "calendar.badge.minus"
-        }
-    }
-}
-
-struct DisclosureCoverageYear: Identifiable, Hashable {
-    var id: Int { year }
-    let year: Int
-    let status: DisclosureCoverageStatus
-}
-
 enum DisclosureTransactionType: String, Codable, CaseIterable {
     case purchase, sale, exchange
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "trade.\(rawValue)") }
@@ -91,12 +62,18 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     let sourceURL: URL
     let eventStudy: [EventStudyPoint]
     let freshness: DataFreshness
+    let confidence: Double
+    let rankingScore: Double
+    let rankingReasons: [String]
+    let whyItMatters: String
 
     init(
         id: UUID, politicianID: String, symbol: String, assetName: String,
         type: DisclosureTransactionType, owner: DisclosureOwner, amountRange: String,
         transactionDate: Date, filedDate: Date, sourceURL: URL,
-        eventStudy: [EventStudyPoint], freshness: DataFreshness = .prototype
+        eventStudy: [EventStudyPoint], freshness: DataFreshness = .delayed,
+        confidence: Double = 1, rankingScore: Double = 0,
+        rankingReasons: [String] = [], whyItMatters: String = ""
     ) {
         self.id = id
         self.politicianID = politicianID
@@ -110,6 +87,10 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
         self.sourceURL = sourceURL
         self.eventStudy = eventStudy
         self.freshness = freshness
+        self.confidence = confidence
+        self.rankingScore = rankingScore
+        self.rankingReasons = rankingReasons
+        self.whyItMatters = whyItMatters
     }
 
     var disclosureLagDays: Int {
@@ -117,61 +98,4 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     }
 
     func returnAt(day: Int) -> EventStudyPoint? { eventStudy.first { $0.tradingDay == day } }
-}
-
-enum ModelPortfolioMode: String, CaseIterable, Identifiable {
-    case reportedHoldings, publicInformation
-    var id: String { rawValue }
-    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "model.\(rawValue)") }
-}
-
-struct ModelPosition: Identifiable, Hashable, Codable {
-    var id: String { symbol + owner.rawValue }
-    let symbol: String
-    let name: String
-    let weight: Double
-    let owner: DisclosureOwner
-    let sourceDate: Date
-    let estimated: Bool
-}
-
-struct ModelPerformancePoint: Identifiable, Hashable, Codable {
-    let id: UUID
-    let date: Date
-    let reportedValue: Double
-    let publicValue: Double
-    let benchmarkValue: Double
-}
-
-struct PoliticianModelPortfolio: Identifiable, Hashable, Codable {
-    var id: String { politicianID }
-    let politicianID: String
-    let asOfDate: Date
-    let positions: [ModelPosition]
-    let performance: [ModelPerformancePoint]
-    let methodologyNote: String
-
-    func value(for point: ModelPerformancePoint, mode: ModelPortfolioMode) -> Double {
-        mode == .reportedHoldings ? point.reportedValue : point.publicValue
-    }
-}
-
-enum PoliticianAnalytics {
-    static func coverage(for politician: Politician, currentYear: Int = Calendar.current.component(.year, from: .now)) -> [DisclosureCoverageYear] {
-        (currentYear - 9...currentYear).map { year in
-            let status: DisclosureCoverageStatus
-            if year < politician.serviceStart { status = .notServing }
-            else if year < currentYear - 5 { status = .sourceUnavailable }
-            else { status = .noReportableTransactions }
-            return DisclosureCoverageYear(year: year, status: status)
-        }
-    }
-
-    static func coverage(for politician: Politician, trades: [DisclosureTrade], currentYear: Int = Calendar.current.component(.year, from: .now)) -> [DisclosureCoverageYear] {
-        let tradeYears = Set(trades.map { Calendar.current.component(.year, from: $0.transactionDate) })
-        return coverage(for: politician, currentYear: currentYear).map { item in
-            guard item.status != .notServing, item.status != .sourceUnavailable else { return item }
-            return DisclosureCoverageYear(year: item.year, status: tradeYears.contains(item.year) ? .complete : .noReportableTransactions)
-        }
-    }
 }
