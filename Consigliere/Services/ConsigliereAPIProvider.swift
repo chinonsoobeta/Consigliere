@@ -2,168 +2,69 @@ import Foundation
 
 enum ProviderFactory {
     static func makeDefault() -> any IntelligenceProvider {
-        guard let configuration = AppConfiguration.apify else {
+        guard let baseURL = AppConfiguration.apiBaseURL else {
             return UnconfiguredIntelligenceProvider()
         }
-        return ApifyAPIClient(configuration: configuration)
+        return ConsigliereAPIClient(baseURL: baseURL)
     }
 }
 
 enum AppConfiguration {
-    static let apifyTokenKey = "APIFY_API_TOKEN"
-    static let apifyActorIDKey = "APIFY_ACTOR_ID"
-    static let apifyRunURLKey = "APIFY_RUN_URL"
-    static let supportedApifyKeys = [apifyTokenKey, apifyActorIDKey, apifyRunURLKey]
+    private static let productionAPIBaseURL = URL(
+        string: "https://consigliere-ingestion.chinonsoobeta.workers.dev"
+    )!
 
-    static var apify: ApifyConfiguration? {
-        if let runURLValue = configuredValue(forKey: apifyRunURLKey),
-           let runURL = URL(string: runURLValue),
-           let runID = Self.runID(from: runURL) {
-            let token = configuredValue(forKey: apifyTokenKey) ?? Self.token(from: runURL)
-            guard let token else { return nil }
-            return ApifyConfiguration(token: token, source: .run(id: runID))
-        }
-
-        let token = configuredValue(forKey: apifyTokenKey)
-        let actorID = configuredValue(forKey: apifyActorIDKey)
-        guard let token, let actorID else { return nil }
-        return ApifyConfiguration(token: token, source: .actor(id: actorID))
-    }
-
-    private static func configuredValue(forKey key: String) -> String? {
-        let environment = ProcessInfo.processInfo.environment[key]
-        let bundle = Bundle.main.object(forInfoDictionaryKey: key) as? String
-        return [environment, bundle]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty && !$0.contains("$(") }
-    }
-
-    private static func runID(from url: URL) -> String? {
-        let components = url.pathComponents
-        guard let index = components.firstIndex(of: "actor-runs"), components.indices.contains(index + 1) else {
+    static var apiBaseURL: URL? {
+        let environment = ProcessInfo.processInfo.environment
+        let environmentValues = [
+            environment["CONSIGLIERE_API_BASE_URL"],
+            environment["CONSILIERE_API_BASE_URL"]
+        ]
+        let bundleValues = [
+            Bundle.main.object(forInfoDictionaryKey: "CONSIGLIERE_API_BASE_URL") as? String,
+            Bundle.main.object(forInfoDictionaryKey: "CONSILIERE_API_BASE_URL") as? String
+        ]
+        guard let value = (environmentValues + bundleValues)
+            .compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) })
+            .first(where: { !$0.isEmpty && !$0.contains("$(") })
+        else { return productionAPIBaseURL }
+        guard let url = URL(string: value), let host = url.host?.lowercased() else {
             return nil
         }
-        return components[index + 1]
-    }
-
-    private static func token(from url: URL) -> String? {
-        URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?
-            .first { $0.name == "token" }?
-            .value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let isSecure = url.scheme?.lowercased() == "https"
+        let isLocalDevelopment = url.scheme?.lowercased() == "http"
+            && (host == "localhost" || host == "127.0.0.1" || host == "::1")
+        guard isSecure || isLocalDevelopment else { return nil }
+        return url
     }
 }
 
-struct ApifyConfiguration: Equatable {
-    enum Source: Equatable {
-        case actor(id: String)
-        case run(id: String)
-    }
-
-    let token: String
-    let source: Source
-    var baseURL = URL(string: "https://api.apify.com")!
-}
-
-struct ApifyAPIClient: IntelligenceProvider {
+struct ConsigliereAPIClient: IntelligenceProvider {
     enum ClientError: LocalizedError {
-        case invalidRequest
         case invalidResponse
-        case emptyDataset
-        case missingDataset
         case serverStatus(Int)
 
         var errorDescription: String? {
             switch self {
-            case .invalidRequest: "The Apify actor configuration is invalid."
-            case .invalidResponse: "Apify returned an invalid intelligence dataset."
-            case .emptyDataset: "The Apify actor did not return any intelligence records."
-            case .missingDataset: "The Apify run does not have a default dataset."
-            case .serverStatus(let status): "Apify returned HTTP \(status)."
+            case .invalidResponse: "The intelligence service returned an invalid response."
+            case .serverStatus(let status): "The intelligence service returned HTTP \(status)."
             }
         }
     }
 
-    let configuration: ApifyConfiguration
+    let baseURL: URL
 
     func snapshot() async throws -> IntelligenceSnapshot {
-        let data = try await snapshotData()
-        return try Self.decodeSnapshot(data, politicians: CongressRosterLoader.load())
-    }
-
-    private func snapshotData() async throws -> Data {
-        switch configuration.source {
-        case .actor:
-            let (data, response) = try await URLSession.shared.data(for: try makeSnapshotRequest())
-            try validate(response)
-            return data
-        case .run:
-            let (runData, runResponse) = try await URLSession.shared.data(for: try makeRunRequest())
-            try validate(runResponse)
-            let run = try JSONDecoder().decode(ApifyRunResponse.self, from: runData)
-            guard let datasetID = run.data.defaultDatasetID else { throw ClientError.missingDataset }
-            let (datasetData, datasetResponse) = try await URLSession.shared.data(for: try makeDatasetItemsRequest(datasetID: datasetID))
-            try validate(datasetResponse)
-            return datasetData
-        }
-    }
-
-    func makeSnapshotRequest() throws -> URLRequest {
-        guard case .actor(let actorID) = configuration.source else { throw ClientError.invalidRequest }
-        let actorPathComponent = actorID.replacingOccurrences(of: "/", with: "~")
-        var components = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: false)
-        components?.path = "/v2/actors/\(actorPathComponent)/run-sync-get-dataset-items"
-        components?.queryItems = [
-            URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "clean", value: "true")
-        ]
-        guard let url = components?.url else { throw ClientError.invalidRequest }
-
-        var request = URLRequest(url: url, timeoutInterval: 120)
-        request.httpMethod = "POST"
+        let url = baseURL.appending(path: "v1/snapshot")
+        var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(configuration.token)", forHTTPHeaderField: "Authorization")
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.httpBody = Data("{}".utf8)
-        return request
-    }
-
-    func makeRunRequest() throws -> URLRequest {
-        guard case .run(let runID) = configuration.source else { throw ClientError.invalidRequest }
-        var components = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: false)
-        components?.path = "/v2/actor-runs/\(runID)"
-        guard let url = components?.url else { throw ClientError.invalidRequest }
-
-        var request = URLRequest(url: url, timeoutInterval: 30)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(configuration.token)", forHTTPHeaderField: "Authorization")
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        return request
-    }
-
-    func makeDatasetItemsRequest(datasetID: String) throws -> URLRequest {
-        var components = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: false)
-        components?.path = "/v2/datasets/\(datasetID)/items"
-        components?.queryItems = [
-            URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "clean", value: "true")
-        ]
-        guard let url = components?.url else { throw ClientError.invalidRequest }
-
-        var request = URLRequest(url: url, timeoutInterval: 60)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(configuration.token)", forHTTPHeaderField: "Authorization")
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        return request
-    }
-
-    private func validate(_ response: URLResponse) throws {
+        let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw ClientError.serverStatus(httpResponse.statusCode)
         }
+        return try Self.decodeSnapshot(data, politicians: CongressRosterLoader.load())
     }
 
     static func decodeSnapshot(_ data: Data, politicians: [Politician]) throws -> IntelligenceSnapshot {
@@ -180,12 +81,9 @@ struct ApifyAPIClient: IntelligenceProvider {
                 debugDescription: "Invalid ISO-8601 date: \(value)"
             )
         }
-        let items = try decoder.decode([ApifySnapshotItem].self, from: data)
-        guard let snapshotData = items.compactMap(\.snapshotData).first else {
-            throw items.isEmpty ? ClientError.emptyDataset : ClientError.invalidResponse
-        }
+        let response = try decoder.decode(SnapshotResponse.self, from: data)
         let resolver = PoliticianIdentityResolver(politicians: politicians)
-        let disclosures = snapshotData.disclosures.compactMap { record -> DisclosureTrade? in
+        let disclosures = response.data.disclosures.compactMap { record -> DisclosureTrade? in
             guard
                 let id = UUID(uuidString: record.id),
                 let politicianID = resolver.resolve(providerID: record.politicianID, name: record.representative),
@@ -215,12 +113,12 @@ struct ApifyAPIClient: IntelligenceProvider {
             )
         }
         return IntelligenceSnapshot(
-            instruments: snapshotData.instruments,
-            events: snapshotData.intelligence,
+            instruments: response.data.instruments,
+            events: response.data.intelligence,
             politicians: politicians,
             disclosures: disclosures,
-            sourceHealth: snapshotData.sourceHealth,
-            coverage: snapshotData.coverage
+            sourceHealth: response.data.sourceHealth,
+            coverage: response.data.coverage
         )
     }
 
@@ -229,43 +127,8 @@ struct ApifyAPIClient: IntelligenceProvider {
     }
 }
 
-private struct ApifyRunResponse: Decodable {
-    let data: ApifyRun
-}
-
-private struct ApifyRun: Decodable {
-    let defaultDatasetID: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case defaultDatasetID = "defaultDatasetId"
-    }
-}
-
-private struct ApifySnapshotItem: Decodable {
-    let data: SnapshotData?
-    let instruments: [MarketInstrument]?
-    let intelligence: [MarketEvent]?
-    let disclosures: [DisclosureRecord]?
-    let sourceHealth: [SourceHealth]?
-    let coverage: [DisclosureCoverageSummary]?
-
-    var snapshotData: SnapshotData? {
-        if let data { return data }
-        guard
-            let instruments,
-            let intelligence,
-            let disclosures,
-            let sourceHealth,
-            let coverage
-        else { return nil }
-        return SnapshotData(
-            instruments: instruments,
-            intelligence: intelligence,
-            disclosures: disclosures,
-            sourceHealth: sourceHealth,
-            coverage: coverage
-        )
-    }
+private struct SnapshotResponse: Decodable {
+    let data: SnapshotData
 }
 
 private struct SnapshotData: Decodable {
@@ -358,5 +221,4 @@ struct PoliticianIdentityResolver {
             .joined(separator: " ")
             .lowercased()
     }
-
 }

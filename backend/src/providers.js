@@ -4,6 +4,7 @@ import {
 import { strFromU8, unzipSync } from "fflate";
 
 const HOUSE_BASE = "https://disclosures-clerk.house.gov";
+const APIFY_BASE = "https://api.apify.com";
 const TRUTH_SOCIAL_HOST = "truthsocial.com";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_HOUSE_ARCHIVE_BYTES = 10 * 1024 * 1024;
@@ -15,11 +16,6 @@ export async function collectOfficialFilings(env, year = new Date().getUTCFullYe
     filings.push(...await collectHouseIndex(env, year));
   } catch (error) {
     failures.push({ provider: "house", error: String(error?.message ?? error) });
-  }
-  try {
-    filings.push(...await collectSenateFeed(env));
-  } catch (error) {
-    failures.push({ provider: "senate", error: String(error?.message ?? error) });
   }
   return { filings, failures };
 }
@@ -74,88 +70,79 @@ export function parseHouseIndex(text, year) {
   }).filter(Boolean);
 }
 
-async function collectSenateFeed(env) {
-  if (!env.SENATE_EFD_FEED_URL) {
-    throw new Error("SENATE_EFD_FEED_URL is not configured; Senate eFD requires a compliant collector endpoint");
-  }
-  const response = await fetchWithTimeout(env.SENATE_EFD_FEED_URL, { headers: publisherHeaders(env) });
-  if (!response.ok) throw new Error(`Senate collector returned ${response.status}`);
-  const payload = await response.json();
-  if (!Array.isArray(payload)) throw new Error("Senate collector returned an unexpected payload");
-  return payload.map((row) => {
-    const representative = String(row.representative ?? row.member ?? "").trim();
-    const disclosureDate = dateOnly(row.disclosureDate ?? row.filedDate);
-    const filingURL = String(row.filingURL ?? row.sourceURL ?? "");
-    if (!representative || !disclosureDate || !isTrustedURL(filingURL, ["efdsearch.senate.gov"])) return null;
-    return {
-      id: stableUUID(`senate|${row.docID ?? filingURL}`),
-      provider: "senate",
-      representative,
-      chamber: "senate",
-      disclosureDate,
-      filingURL,
-      docID: row.docID ? String(row.docID) : null,
-      extractionStatus: String(row.extractionStatus ?? "official-metadata"),
-      rawJSON: JSON.stringify(row)
-    };
-  }).filter(Boolean);
+export async function collectApifyDisclosures(env, input = {}) {
+  if (!env.APIFY_API_TOKEN) return { filings: [], disclosures: [] };
+  const payload = env.APIFY_RUN_ID
+    ? await fetchApifyRunDataset(env, env.APIFY_RUN_ID)
+    : (await Promise.all(apifyInputs(input).map((actorInput) =>
+      runApifyActor(env, actorInput)
+    ))).flat();
+  if (!Array.isArray(payload)) throw new Error("Apify returned an unexpected dataset payload");
+  return normalizeApifyDataset(payload);
 }
 
-export async function collectFMPDisclosures(env) {
-  if (!env.FMP_API_KEY) return [];
-  const endpoints = [
-    ["house", "house-latest"],
-    ["senate", "senate-latest"]
-  ];
+export function normalizeApifyDataset(payload) {
+  const filings = [];
   const records = [];
-  for (const [chamber, endpoint] of endpoints) {
-    const url = new URL(`/stable/${endpoint}`, env.FMP_BASE_URL || "https://financialmodelingprep.com");
-    url.searchParams.set("page", "0");
-    url.searchParams.set("limit", "250");
-    url.searchParams.set("apikey", env.FMP_API_KEY);
-    const response = await fetchWithTimeout(url);
-    if (!response.ok) throw new Error(`FMP ${chamber} endpoint returned ${response.status}`);
-    const payload = await response.json();
-    if (!Array.isArray(payload)) throw new Error(`FMP ${chamber} endpoint returned an unexpected payload`);
-    for (const row of payload) {
-      const representative = [row.firstName, row.lastName].filter(Boolean).join(" ").trim() || String(row.office ?? "");
-      const ticker = String(row.symbol ?? "").trim().toUpperCase();
-      const transactionDate = dateOnly(row.transactionDate);
-      const reportDate = dateOnly(row.disclosureDate);
-      const sourceURL = String(row.link ?? "");
-      const sourceHosts = chamber === "house"
-        ? ["disclosures-clerk.house.gov"]
-        : ["efdsearch.senate.gov"];
+  for (const row of payload) {
+    const representative = String(row.memberName ?? row.member ?? "").trim().slice(0, 300);
+    const chamber = normalizeChamber(row.chamber);
+    const reportDate = dateOnly(row.dateSubmitted ?? row.filingDate ?? row.disclosureDate);
+    const sourceURL = String(row.documentUrl ?? row.filingUrl ?? "");
+    const sourceHosts = chamber === "house"
+      ? ["disclosures-clerk.house.gov"]
+      : ["efdsearch.senate.gov"];
+    if (!representative || !chamber || !reportDate || !isTrustedURL(sourceURL, sourceHosts)) continue;
+
+    const filingID = stableUUID(`apify-filing|${sourceURL}`);
+    filings.push({
+      id: filingID,
+      provider: "apify",
+      representative,
+      chamber,
+      disclosureDate: reportDate,
+      filingURL: sourceURL,
+      docID: documentIdentifier(sourceURL),
+      extractionStatus: Array.isArray(row.transactions) ? "transactions-extracted" : "official-metadata",
+      rawJSON: JSON.stringify(row)
+    });
+
+    const transactions = Array.isArray(row.transactions) ? row.transactions : [];
+    for (const transaction of transactions) {
+      const ticker = String(transaction.ticker ?? "").trim().toUpperCase();
+      const transactionDate = dateOnly(transaction.transactionDate);
+      const transactionType = normalizeTransaction(transaction.transactionType);
+      const owner = normalizeOwner(transaction.owner);
       if (
-        !representative || !ticker || !transactionDate || !reportDate
-        || !isTrustedURL(sourceURL, sourceHosts)
+        !ticker || !transactionDate || !transactionType || !owner
+        || !/^[A-Z0-9.^:-]{1,20}$/.test(ticker)
       ) continue;
-      const transactionType = normalizeTransaction(row.type);
-      const owner = normalizeOwner(row.owner);
-      if (!transactionType || !owner || !/^[A-Z0-9.^:-]{1,20}$/.test(ticker)) continue;
-      const amountRange = String(row.amount ?? "Not reported");
-      const identity = [chamber, representative, ticker, transactionDate, reportDate, transactionType, amountRange, owner].join("|");
+      const amountRange = String(transaction.amount ?? "Not reported").slice(0, 100);
+      const assetName = String(transaction.assetName ?? ticker).trim().slice(0, 500);
+      const identity = [
+        filingID, ticker, transactionDate, transactionType, amountRange, owner, assetName
+      ].join("|");
       records.push({
-        id: stableUUID(identity),
-        provider: "fmp-reconciliation",
+        id: stableUUID(`apify-trade|${identity}`),
+        provider: "apify",
         politicianID: null,
-        representative: representative.slice(0, 300),
+        representative,
         reportDate,
         transactionDate,
         ticker,
-        assetName: String(row.assetDescription ?? ticker).slice(0, 500),
+        assetName,
         transactionType,
         owner,
         amountRange,
         chamber,
         party: null,
         sourceURL,
-        confidence: 0.9,
-        rawJSON: JSON.stringify(row)
+        confidence: 0.95,
+        rawJSON: JSON.stringify({ filing: row, transaction })
       });
     }
   }
-  return records;
+  return { filings, disclosures: records };
 }
 
 export async function collectTruthPosts(env) {
@@ -250,6 +237,87 @@ export function isTrustedURL(value, allowedHosts, allowSubdomains = false) {
   }
 }
 
+export function apifyInput(value = {}) {
+  const currentYear = new Date().getUTCFullYear();
+  return {
+    chamber: ["house", "senate"].includes(value.chamber) ? value.chamber : "senate",
+    fetchTransactions: true,
+    filingType: "P",
+    filingYear: clampInteger(value.filingYear, 2008, currentYear, currentYear),
+    maxResults: clampInteger(value.maxResults, 1, 500, 50),
+    query: typeof value.query === "string" ? value.query.trim().slice(0, 100) : "",
+    state: typeof value.state === "string" ? value.state.trim().toUpperCase().slice(0, 2) : ""
+  };
+}
+
+export function apifyInputs(value = {}) {
+  if (value.chamber === "house" || value.chamber === "senate") {
+    return [apifyInput(value)];
+  }
+  return [
+    apifyInput({ ...value, chamber: "house" }),
+    apifyInput({ ...value, chamber: "senate" })
+  ];
+}
+
+async function runApifyActor(env, input) {
+  const actorID = env.APIFY_ACTOR_ID || "4Y9oheOAZjMZ3gGqH";
+  const url = new URL(`/v2/acts/${encodeURIComponent(actorID)}/runs`, APIFY_BASE);
+  url.searchParams.set("waitForFinish", "300");
+  const response = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.APIFY_API_TOKEN}`,
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(310_000)
+  });
+  if (!response.ok) throw new Error(`Apify actor run returned ${response.status}`);
+  const run = (await response.json()).data;
+  if (run?.status !== "SUCCEEDED" || !run.defaultDatasetId) {
+    throw new Error(`Apify actor run did not succeed: ${run?.status ?? "unknown"}`);
+  }
+  return fetchApifyDataset(env, run.defaultDatasetId);
+}
+
+async function fetchApifyRunDataset(env, runID) {
+  const runURL = new URL(`/v2/actor-runs/${encodeURIComponent(runID)}`, APIFY_BASE);
+  const runResponse = await fetchWithTimeout(runURL, {
+    headers: { Authorization: `Bearer ${env.APIFY_API_TOKEN}`, Accept: "application/json" }
+  });
+  if (!runResponse.ok) throw new Error(`Apify run returned ${runResponse.status}`);
+  const run = (await runResponse.json()).data;
+  if (run?.status !== "SUCCEEDED" || !run.defaultDatasetId) {
+    throw new Error(`Apify run is not ready: ${run?.status ?? "unknown"}`);
+  }
+  return fetchApifyDataset(env, run.defaultDatasetId);
+}
+
+async function fetchApifyDataset(env, datasetID) {
+  const datasetURL = new URL(`/v2/datasets/${encodeURIComponent(datasetID)}/items`, APIFY_BASE);
+  datasetURL.searchParams.set("clean", "true");
+  const datasetResponse = await fetchWithTimeout(datasetURL, {
+    headers: { Authorization: `Bearer ${env.APIFY_API_TOKEN}`, Accept: "application/json" }
+  });
+  if (!datasetResponse.ok) throw new Error(`Apify dataset returned ${datasetResponse.status}`);
+  return datasetResponse.json();
+}
+
+function normalizeChamber(value) {
+  const chamber = String(value ?? "").trim().toLowerCase();
+  return chamber === "house" || chamber === "senate" ? chamber : null;
+}
+
+function documentIdentifier(value) {
+  try {
+    return new URL(value).pathname.split("/").filter(Boolean).at(-1) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function safeISOString(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -282,4 +350,10 @@ function inferKind(type = "") {
   if (value.includes("index")) return "index";
   if (value.includes("currency") || value.includes("forex")) return "currency";
   return "equity";
+}
+
+function clampInteger(value, minimum, maximum, fallback) {
+  const number = Number(value);
+  if (!Number.isInteger(number)) return fallback;
+  return Math.min(Math.max(number, minimum), maximum);
 }

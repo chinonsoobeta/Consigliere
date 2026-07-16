@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { strToU8, zipSync } from "fflate";
 import {
-  houseIndexFromArchive, isTrustedURL, parseHouseIndex
+  apifyInput, apifyInputs, houseIndexFromArchive, isTrustedURL, normalizeApifyDataset, parseHouseIndex
 } from "../src/providers.js";
 import { dateOnly, normalizeOwner, normalizeTransaction } from "../src/normalization.js";
 import { rankDisclosure, whyDisclosureMatters } from "../src/ranking.js";
@@ -77,4 +77,57 @@ test("normalization rejects impossible dates and unknown categorical values", ()
   assert.equal(dateOnly("2026-13-01"), null);
   assert.equal(normalizeTransaction("gift"), null);
   assert.equal(normalizeOwner("mystery trust"), null);
+});
+
+test("normalizes the configured Apify actor's nested PTR schema", () => {
+  const result = normalizeApifyDataset([{
+    memberName: "Thomas H Tuberville",
+    chamber: "Senate",
+    filingYear: 2026,
+    filingType: "P",
+    documentUrl: "https://efdsearch.senate.gov/search/view/ptr/392ac3e5-07f6-4f8c-840f-84e9066ffb29/",
+    dateSubmitted: "07/16/2026",
+    transactions: [{
+      owner: "Self",
+      assetName: "Westinghouse Air Brake Technologies Corporation Common Stock",
+      ticker: "WAB",
+      transactionType: "Sale (Full)",
+      transactionDate: "06/09/2026",
+      amount: "$1,001 - $15,000"
+    }, {
+      owner: "Joint",
+      assetName: "Tickerless asset",
+      transactionType: "Purchase",
+      transactionDate: "06/08/2026",
+      amount: "$1,001 - $15,000"
+    }]
+  }]);
+
+  assert.equal(result.filings.length, 1);
+  assert.equal(result.filings[0].chamber, "senate");
+  assert.equal(result.disclosures.length, 1);
+  assert.equal(result.disclosures[0].ticker, "WAB");
+  assert.equal(result.disclosures[0].transactionType, "sale");
+  assert.equal(result.disclosures[0].owner, "member");
+  assert.equal(result.disclosures[0].reportDate, "2026-07-16");
+});
+
+test("constrains Apify actor inputs to supported values", () => {
+  assert.deepEqual(apifyInput({
+    chamber: "invalid",
+    filingYear: 1900,
+    maxResults: 5_000,
+    query: "x".repeat(200),
+    state: "california"
+  }), {
+    chamber: "senate",
+    fetchTransactions: true,
+    filingType: "P",
+    filingYear: 2008,
+    maxResults: 500,
+    query: "x".repeat(100),
+    state: "CA"
+  });
+  assert.deepEqual(apifyInputs({ filingYear: 2026 }).map((input) => input.chamber), ["house", "senate"]);
+  assert.equal(apifyInput({}).maxResults, 50);
 });

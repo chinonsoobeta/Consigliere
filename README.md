@@ -22,7 +22,7 @@ GET /v1/snapshot
 The Worker stores normalized records and raw provider payloads in D1. Its adapters cover:
 
 - Official House filing metadata from the Clerk's annual ZIP index and a compliant Senate eFD collector
-- Optional FMP reconciliation for structured congressional transactions
+- Apify actor `pink_comic/congress-stock-trading-disclosures` for structured House and Senate transactions
 - Licensed Truth Social monitoring
 - Licensed Twelve Data market data with attribution
 
@@ -36,7 +36,20 @@ Open `Consigliere.xcodeproj` in Xcode 15 or newer and run the `Consigliere` sche
 xcodegen generate
 ```
 
-Set `APIFY_RUN_URL` to an Apify actor-run URL, or set `APIFY_API_TOKEN` and `APIFY_ACTOR_ID` to run the configured actor directly. The app fetches Apify dataset items and expects the first dataset item to contain the normalized Consigliere snapshot payload. If the Apify configuration is absent or the actor fails, Consigliere shows an explicit live-source error and never substitutes sample data.
+Set `CONSILIERE_API_BASE_URL` to a migrated, configured Worker deployment. If it is absent or the service fails, Consigliere shows an explicit live-source error and never substitutes sample data.
+
+For the Worker:
+
+```sh
+cd backend
+npm install
+npx wrangler d1 migrations apply consigliere-data --local
+npx wrangler dev
+```
+
+Copy `.dev.vars.example` to `.dev.vars` and configure only the sources you are licensed to use. Production credentials must be stored with `wrangler secret put`. Never place an Apify token in the app bundle, Git history, or a committed URL.
+
+Apply every D1 migration before deploying a Worker revision. The sync path uses per-provider leases and writes an auditable `sync_runs` record, so overlapping scheduled and manual runs do not duplicate work.
 
 ## Publishing and data rights
 

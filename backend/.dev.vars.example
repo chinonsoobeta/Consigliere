@@ -1,6 +1,8 @@
 SYNC_TOKEN=replace-with-a-long-random-value
-SENATE_EFD_FEED_URL=https://your-compliant-senate-collector.example/feed
-FMP_API_KEY=optional-reconciliation-key
+APIFY_API_TOKEN=replace-with-an-apify-secret
+APIFY_ACTOR_ID=4Y9oheOAZjMZ3gGqH
+# Optional for replaying one completed run during local testing only:
+# APIFY_RUN_ID=TfAfbkYgfdZs37cRJ
 TWELVE_DATA_API_KEY=licensed-market-data-key
 TRUTH_API_URL=https://licensed-truth-api.example/posts
 TRUTH_API_TOKEN=licensed-truth-api-token

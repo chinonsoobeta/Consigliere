@@ -1,17 +1,18 @@
 import {
-  collectFMPDisclosures, collectMarketData, collectOfficialFilings, collectTruthPosts
+  collectApifyDisclosures, collectMarketData, collectOfficialFilings, collectTruthPosts
 } from "./providers.js";
 import { rankDisclosure, rankSocialPost, whyDisclosureMatters } from "./ranking.js";
 import { stableUUID } from "./normalization.js";
 
 const EXPECTED_SOURCES = [
-  ["official-disclosures", "Official House and Senate disclosures"],
-  ["fmp-reconciliation", "Structured disclosure reconciliation"],
+  ["official-disclosures", "Official House disclosure index"],
+  ["apify", "Structured House and Senate disclosures"],
   ["truth-api", "Truth Social political monitoring"],
   ["twelve-data", "Licensed market data"]
 ];
 const MAX_INTERNAL_BODY_BYTES = 4096;
 const SYNC_LOCK_MS = 15 * 60_000;
+const WORKER_VERSION = "2026-07-16-apify-v2";
 
 export default {
   async fetch(request, env) {
@@ -35,7 +36,17 @@ export default {
       if (!Number.isInteger(requestedYear) || requestedYear < 2008 || requestedYear > currentYear) {
         return json({ error: "invalid_year", minimum: 2008, maximum: currentYear }, 400);
       }
-      return json(await syncOfficial(env, requestedYear));
+      const results = await Promise.allSettled([
+        syncOfficial(env, requestedYear),
+        syncApify(env, {
+          chamber: body.chamber,
+          filingYear: requestedYear,
+          maxResults: body.maxResults,
+          query: body.query,
+          state: body.state
+        })
+      ]);
+      return json(settledResponse(results));
     }
     return json({ error: "not_found" }, 404);
   },
@@ -53,7 +64,7 @@ async function health(env) {
   `).all();
   const sources = mergeSourceHealth(result.results);
   const degraded = sources.some((source) => source.status !== "available");
-  return json({ status: degraded ? "degraded" : "ok", sources });
+  return json({ status: degraded ? "degraded" : "ok", version: WORKER_VERSION, sources });
 }
 
 async function snapshot(env) {
@@ -102,7 +113,8 @@ async function snapshot(env) {
     },
     meta: {
       generatedAt: new Date().toISOString(),
-      publisher: "Consigliere public-interest news and research"
+      publisher: "Consigliere public-interest news and research",
+      version: WORKER_VERSION
     }
   });
 }
@@ -151,7 +163,7 @@ async function syncAll(env) {
   const market = await Promise.allSettled([syncMarkets(env)]);
   const remaining = await Promise.allSettled([
     syncOfficial(env),
-    syncFMP(env),
+    syncApify(env),
     syncTruth(env)
   ]);
   const settled = [...market, ...remaining];
@@ -167,7 +179,7 @@ async function syncAll(env) {
 }
 
 async function syncOfficial(env, year = new Date().getUTCFullYear()) {
-  return withHealth(env, "official-disclosures", "Official House and Senate disclosures", async () => {
+  return withHealth(env, "official-disclosures", "Official House disclosure index", async () => {
     const { filings, failures } = await collectOfficialFilings(env, year);
     const now = new Date().toISOString();
     await executeInChunks(
@@ -187,13 +199,13 @@ async function syncOfficial(env, year = new Date().getUTCFullYear()) {
   });
 }
 
-async function syncFMP(env) {
-  return withHealth(env, "fmp-reconciliation", "Structured disclosure reconciliation", async () => {
-    if (!env.FMP_API_KEY) return { recordsSeen: 0, message: "Not configured" };
-    const rows = await collectFMPDisclosures(env);
+async function syncApify(env, input = {}) {
+  return withHealth(env, "apify", "Structured House and Senate disclosures", async () => {
+    if (!env.APIFY_API_TOKEN) return { recordsSeen: 0, message: "Not configured" };
+    const { filings, disclosures } = await collectApifyDisclosures(env, input);
     const now = new Date().toISOString();
     const marketMoves = await marketMoveLookup(env.DB);
-    const statements = rows.map((record) => {
+    const disclosureStatements = disclosures.map((record) => {
       const enriched = {
         ...record,
         marketMovePercent: marketMoves.get(record.ticker) ?? null
@@ -208,12 +220,16 @@ async function syncFMP(env) {
         updatedAt: now
       });
     });
-    await executeInChunks(env.DB, statements);
+    const filingStatements = filings.map((filing) => sourceFilingStatement(
+      env.DB, { ...filing, observedAt: now, updatedAt: now }
+    ));
+    await executeInChunks(env.DB, [...disclosureStatements, ...filingStatements]);
     return {
-      recordsSeen: rows.length,
-      recordsWritten: rows.length,
-      coverageStart: minimumDate(rows.map((item) => item.reportDate)),
-      coverageEnd: maximumDate(rows.map((item) => item.reportDate))
+      recordsSeen: filings.length,
+      recordsWritten: disclosures.length + filings.length,
+      coverageStart: minimumDate(filings.map((item) => item.disclosureDate)),
+      coverageEnd: maximumDate(filings.map((item) => item.disclosureDate)),
+      message: filings.length ? null : "No filings returned by Apify"
     };
   });
 }
@@ -599,6 +615,18 @@ function json(body, status = 200) {
       "referrer-policy": "no-referrer"
     }
   });
+}
+
+function settledResponse(results) {
+  const sources = results.map((result) => result.status === "fulfilled"
+    ? result.value
+    : { status: "failed", error: String(result.reason?.message ?? result.reason) });
+  return {
+    status: results.some((result) =>
+      result.status === "rejected" || result.value.status !== "available"
+    ) ? "degraded" : "succeeded",
+    sources
+  };
 }
 
 async function readSmallJSON(request) {

@@ -5,7 +5,7 @@ workers_dev = true
 preview_urls = false
 
 [triggers]
-crons = ["0 * * * *"]
+crons = ["0 */12 * * *"]
 
 [[d1_databases]]
 binding = "DB"
@@ -14,7 +14,7 @@ database_id = "8280f94c-5c9f-45d0-b507-f1d05601e8d5"
 migrations_dir = "migrations"
 
 [vars]
-FMP_BASE_URL = "https://financialmodelingprep.com"
+APIFY_ACTOR_ID = "4Y9oheOAZjMZ3gGqH"
 TWELVE_DATA_BASE_URL = "https://api.twelvedata.com"
 MARKET_SYMBOLS = "SPY,QQQ,DIA,IXIC"
 PUBLISHER_USER_AGENT = "Consigliere/1.0 public-interest political-market research"

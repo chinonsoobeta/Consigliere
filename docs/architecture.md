@@ -6,9 +6,9 @@ The Worker owns credentials, retrieval, normalization, ranking, provenance, and 
 
 ## Source policy
 
-Official House and Senate filings are canonical provenance. The House collector reads the official annual disclosure index and preserves PTR documents as filing records. Senate ingestion requires a separately operated compliant eFD collector endpoint because the public search workflow is session-oriented. A filing that cannot be parsed remains a filing; it is never converted into an inferred trade.
+Official House and Senate filings are canonical provenance. The House collector reads the official annual disclosure index and preserves PTR documents as filing records. Structured House and Senate transactions are retrieved through the configured Apify actor and must retain official Clerk or Senate eFD document links. A filing that cannot be parsed remains a filing; it is never converted into an inferred trade.
 
-FMP may reconcile and structure transactions when configured, but every displayed record must link to the official filing. Truth Social monitoring and market quotes require licensed publisher/display access. Twelve Data attribution is retained in the normalized market record. Physical crude assessments remain unavailable until a suitable display license is configured.
+Every displayed disclosure must link to the official filing. Truth Social monitoring and market quotes require licensed publisher/display access. Twelve Data attribution is retained in the normalized market record. Physical crude assessments remain unavailable until a suitable display license is configured.
 
 ## Intelligence contract
 
