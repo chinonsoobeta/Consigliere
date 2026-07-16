@@ -16,11 +16,15 @@ final class AppState: ObservableObject {
     @AppStorage("language") private var storedLanguage = AppLanguage.usEnglish.rawValue
     @AppStorage("watchlist") private var storedWatchlist = "SPY,QQQ,DIA"
 
-    private let provider: any IntelligenceProvider
+    private let providerFactory: () -> any IntelligenceProvider
     private var hasLoaded = false
 
-    init(provider: any IntelligenceProvider = ProviderFactory.makeDefault()) {
-        self.provider = provider
+    init(providerFactory: @escaping () -> any IntelligenceProvider = ProviderFactory.makeDefault) {
+        self.providerFactory = providerFactory
+    }
+
+    convenience init(provider: any IntelligenceProvider) {
+        self.init(providerFactory: { provider })
     }
 
     var appearance: Appearance {
@@ -60,7 +64,7 @@ final class AppState: ObservableObject {
         disclosureLoadError = nil
 
         do {
-            let snapshot = try await provider.snapshot()
+            let snapshot = try await providerFactory().snapshot()
             instruments = snapshot.instruments
             events = snapshot.events.sorted {
                 if $0.rankingScore == $1.rankingScore { return $0.publishedAt > $1.publishedAt }

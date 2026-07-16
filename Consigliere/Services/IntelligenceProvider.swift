@@ -5,18 +5,18 @@ protocol IntelligenceProvider: Sendable {
 }
 
 enum LiveProviderError: LocalizedError {
-    case missingBaseURL
+    case missingApifyConfiguration
 
     var errorDescription: String? {
         switch self {
-        case .missingBaseURL:
-            "The live intelligence service is not configured. Set CONSILIERE_API_BASE_URL and try again."
+        case .missingApifyConfiguration:
+            "The live intelligence service is not configured. Set APIFY_RUN_URL, or set APIFY_API_TOKEN and APIFY_ACTOR_ID, and try again."
         }
     }
 }
 
 struct UnconfiguredIntelligenceProvider: IntelligenceProvider {
     func snapshot() async throws -> IntelligenceSnapshot {
-        throw LiveProviderError.missingBaseURL
+        throw LiveProviderError.missingApifyConfiguration
     }
 }

@@ -1,10 +1,11 @@
+import Darwin
 import XCTest
 @testable import Consigliere
 
 final class ConsigliereAPIProviderTests: XCTestCase {
-    func testDecodesLiveSnapshotAndResolvesPolitician() throws {
+    func testDecodesApifyDatasetSnapshotAndResolvesPolitician() throws {
         let json = """
-        {
+        [{
           "data": {
             "instruments": [],
             "intelligence": [{
@@ -53,14 +54,14 @@ final class ConsigliereAPIProviderTests: XCTestCase {
               "completeness": "available-records"
             }]
           }
-        }
+        }]
         """
         let politicians = [Politician(
             id: "P000197", name: "Nancy Pelosi", party: "Democrat", state: "California",
             district: 11, chamber: .house, imageURL: nil, serviceStart: 1987
         )]
 
-        let snapshot = try ConsigliereAPIClient.decodeSnapshot(Data(json.utf8), politicians: politicians)
+        let snapshot = try ApifyAPIClient.decodeSnapshot(Data(json.utf8), politicians: politicians)
 
         XCTAssertEqual(snapshot.disclosures.count, 1)
         XCTAssertEqual(snapshot.disclosures.first?.politicianID, "P000197")
@@ -77,6 +78,64 @@ final class ConsigliereAPIProviderTests: XCTestCase {
         } catch {
             XCTAssertTrue(error is LiveProviderError)
         }
+    }
+
+    func testMissingConfigurationErrorMentionsApifyKeys() {
+        XCTAssertEqual(
+            LiveProviderError.missingApifyConfiguration.localizedDescription,
+            "The live intelligence service is not configured. Set APIFY_RUN_URL, or set APIFY_API_TOKEN and APIFY_ACTOR_ID, and try again."
+        )
+    }
+
+    func testAppConfigurationUsesApifyKeys() {
+        withApifyEnvironment([
+            AppConfiguration.apifyTokenKey: "token-123",
+            AppConfiguration.apifyActorIDKey: "user/actor"
+        ]) {
+            XCTAssertEqual(AppConfiguration.apify, ApifyConfiguration(token: "token-123", source: .actor(id: "user/actor")))
+        }
+    }
+
+    func testAppConfigurationUsesApifyRunURL() {
+        withApifyEnvironment([
+            AppConfiguration.apifyRunURLKey: "https://api.apify.com/v2/actor-runs/run-123?token=token-123"
+        ]) {
+            XCTAssertEqual(AppConfiguration.apify, ApifyConfiguration(token: "token-123", source: .run(id: "run-123")))
+        }
+    }
+
+    func testAppConfigurationRequiresRunnableApifySource() {
+        withApifyEnvironment([AppConfiguration.apifyTokenKey: "token-123"]) {
+            XCTAssertNil(AppConfiguration.apify)
+        }
+    }
+
+    func testApifySnapshotRequestUsesActorEndpoint() throws {
+        let client = ApifyAPIClient(configuration: ApifyConfiguration(token: "token-123", source: .actor(id: "user/actor")))
+
+        let request = try client.makeSnapshotRequest()
+
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.scheme, "https")
+        XCTAssertEqual(request.url?.host, "api.apify.com")
+        XCTAssertEqual(request.url?.path, "/v2/actors/user~actor/run-sync-get-dataset-items")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token-123")
+        XCTAssertTrue(request.url?.query?.contains("format=json") == true)
+        XCTAssertTrue(request.url?.query?.contains("clean=true") == true)
+    }
+
+    func testApifyRunRequestUsesRunEndpoint() throws {
+        let client = ApifyAPIClient(configuration: ApifyConfiguration(token: "token-123", source: .run(id: "run-123")))
+
+        let runRequest = try client.makeRunRequest()
+        let datasetRequest = try client.makeDatasetItemsRequest(datasetID: "dataset-123")
+
+        XCTAssertEqual(runRequest.url?.path, "/v2/actor-runs/run-123")
+        XCTAssertEqual(runRequest.value(forHTTPHeaderField: "Authorization"), "Bearer token-123")
+        XCTAssertEqual(datasetRequest.url?.path, "/v2/datasets/dataset-123/items")
+        XCTAssertEqual(datasetRequest.value(forHTTPHeaderField: "Authorization"), "Bearer token-123")
+        XCTAssertTrue(datasetRequest.url?.query?.contains("format=json") == true)
+        XCTAssertTrue(datasetRequest.url?.query?.contains("clean=true") == true)
     }
 
     func testResolvesProviderNamesWithAliasesAndSuffixes() {
@@ -102,5 +161,28 @@ final class ConsigliereAPIProviderTests: XCTestCase {
         let resolver = PoliticianIdentityResolver(politicians: politicians)
 
         XCTAssertNil(resolver.resolve(providerID: nil, name: "A Smith"))
+    }
+
+    private func withApifyEnvironment(_ values: [String: String], body: () -> Void) {
+        let previousValues = Dictionary(
+            uniqueKeysWithValues: AppConfiguration.supportedApifyKeys.map { key in
+                (key, getenv(key).map { String(cString: $0) })
+            }
+        )
+
+        AppConfiguration.supportedApifyKeys.forEach { unsetenv($0) }
+        values.forEach { key, value in setenv(key, value, 1) }
+
+        defer {
+            for (key, previousValue) in previousValues {
+                if let previousValue {
+                    setenv(key, previousValue, 1)
+                } else {
+                    unsetenv(key)
+                }
+            }
+        }
+
+        body()
     }
 }
