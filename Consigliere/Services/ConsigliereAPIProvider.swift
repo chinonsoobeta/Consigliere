@@ -16,13 +16,22 @@ enum ProviderFactory {
 }
 
 enum AppConfiguration {
+    private static let defaultAPIBaseURL = URL(string: "https://consigliere-ingestion.chinonsoobeta.workers.dev")!
+
     static var apiBaseURL: URL? {
-        let environmentValue = ProcessInfo.processInfo.environment["CONSILIERE_API_BASE_URL"]
-        let bundleValue = Bundle.main.object(forInfoDictionaryKey: "CONSILIERE_API_BASE_URL") as? String
-        guard let value = [environmentValue, bundleValue]
+        let environment = ProcessInfo.processInfo.environment
+        let environmentValues = [
+            environment["CONSIGLIERE_API_BASE_URL"],
+            environment["CONSILIERE_API_BASE_URL"]
+        ]
+        let bundleValues = [
+            Bundle.main.object(forInfoDictionaryKey: "CONSIGLIERE_API_BASE_URL") as? String,
+            Bundle.main.object(forInfoDictionaryKey: "CONSILIERE_API_BASE_URL") as? String
+        ]
+        guard let value = (environmentValues + bundleValues)
             .compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) })
             .first(where: { !$0.isEmpty && !$0.contains("$(") })
-        else { return nil }
+        else { return defaultAPIBaseURL }
         return URL(string: value)
     }
 }
@@ -41,12 +50,45 @@ struct HybridIntelligenceProvider: IntelligenceProvider {
     func disclosures() async throws -> [DisclosureTrade] {
         do {
             let roster = try await prototype.politicians()
-            return try await apiClient.disclosures(politicians: roster)
+            let backendDisclosures = try await apiClient.disclosures(politicians: roster)
+            return Self.mergedDisclosures(
+                primary: backendDisclosures,
+                fallback: try await prototype.disclosures()
+            )
         } catch {
-            guard fallbackOnFailure else { throw error }
-            // Debug builds remain usable before the backend is deployed or while it is unavailable.
             return try await prototype.disclosures()
         }
+    }
+
+    static func mergedDisclosures(primary: [DisclosureTrade], fallback: [DisclosureTrade]) -> [DisclosureTrade] {
+        guard !primary.isEmpty else { return fallback }
+        var seen = Set(primary.map { DisclosureIdentity(trade: $0) })
+        let uniqueFallback = fallback.filter { seen.insert(DisclosureIdentity(trade: $0)).inserted }
+        return primary + uniqueFallback
+    }
+}
+
+private struct DisclosureIdentity: Hashable {
+    let politicianID: String
+    let symbol: String
+    let assetName: String
+    let type: DisclosureTransactionType
+    let owner: DisclosureOwner
+    let amountRange: String
+    let transactionDate: Date
+    let filedDate: Date
+    let sourceURL: URL
+
+    init(trade: DisclosureTrade) {
+        politicianID = trade.politicianID
+        symbol = trade.symbol
+        assetName = trade.assetName
+        type = trade.type
+        owner = trade.owner
+        amountRange = trade.amountRange
+        transactionDate = trade.transactionDate
+        filedDate = trade.filedDate
+        sourceURL = trade.sourceURL
     }
 }
 
@@ -61,7 +103,10 @@ struct ConsigliereAPIClient: Sendable {
 
     func disclosures(politicians: [Politician]) async throws -> [DisclosureTrade] {
         let url = baseURL.appending(path: "v1/disclosures")
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Consigliere/1.0 CFNetwork", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
         guard (200..<300).contains(httpResponse.statusCode) else { throw ClientError.serverStatus(httpResponse.statusCode) }
         return try Self.decodeDisclosures(data, politicians: politicians)
@@ -121,6 +166,8 @@ private struct DisclosureRecord: Decodable {
 }
 
 struct PoliticianIdentityResolver {
+    private static let fuzzyMatchThreshold = 0.75
+
     private let politicians: [Politician]
     private let IDs: Set<String>
     private let exactMatches: [String: Politician]
@@ -149,7 +196,24 @@ struct PoliticianIdentityResolver {
             let candidate = Self.identityComponents(Self.normalize($0.name))
             return candidate.first?.first == firstInitial && candidate.last == surname
         }
-        return candidates.count == 1 ? candidates[0].id : nil
+        if candidates.count == 1 { return candidates[0].id }
+        return fuzzyMatch(normalizedName: normalized)?.id
+    }
+
+    private func fuzzyMatch(normalizedName: String) -> Politician? {
+        let rankedMatches = politicians
+            .map { politician in
+                (politician, Self.similarity(normalizedName, Self.normalize(politician.name)))
+            }
+            .filter { $0.1 >= Self.fuzzyMatchThreshold }
+            .sorted { lhs, rhs in
+                if lhs.1 == rhs.1 { return lhs.0.id < rhs.0.id }
+                return lhs.1 > rhs.1
+            }
+
+        guard let best = rankedMatches.first else { return nil }
+        if rankedMatches.dropFirst().first?.1 == best.1 { return nil }
+        return best.0
     }
 
     private static func identityComponents(_ normalizedName: String) -> [Substring] {
@@ -181,5 +245,45 @@ struct PoliticianIdentityResolver {
             .filter { !$0.isEmpty && !honorifics.contains($0.lowercased()) }
             .joined(separator: " ")
             .lowercased()
+    }
+
+    private static func similarity(_ lhs: String, _ rhs: String) -> Double {
+        guard !lhs.isEmpty || !rhs.isEmpty else { return 1 }
+        let distance = levenshteinDistance(lhs, rhs)
+        let editSimilarity = 1 - Double(distance) / Double(max(lhs.count, rhs.count))
+        return max(editSimilarity, tokenSimilarity(lhs, rhs))
+    }
+
+    private static func tokenSimilarity(_ lhs: String, _ rhs: String) -> Double {
+        let lhsTokens = Set(lhs.split(separator: " "))
+        let rhsTokens = Set(rhs.split(separator: " "))
+        guard !lhsTokens.isEmpty || !rhsTokens.isEmpty else { return 1 }
+        let sharedCount = lhsTokens.intersection(rhsTokens).count
+        return Double(sharedCount * 2) / Double(lhsTokens.count + rhsTokens.count)
+    }
+
+    private static func levenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
+        let lhsCharacters = Array(lhs)
+        let rhsCharacters = Array(rhs)
+        if lhsCharacters.isEmpty { return rhsCharacters.count }
+        if rhsCharacters.isEmpty { return lhsCharacters.count }
+
+        var previous = Array(0...rhsCharacters.count)
+        var current = Array(repeating: 0, count: rhsCharacters.count + 1)
+
+        for lhsIndex in 1...lhsCharacters.count {
+            current[0] = lhsIndex
+            for rhsIndex in 1...rhsCharacters.count {
+                let substitutionCost = lhsCharacters[lhsIndex - 1] == rhsCharacters[rhsIndex - 1] ? 0 : 1
+                current[rhsIndex] = min(
+                    previous[rhsIndex] + 1,
+                    current[rhsIndex - 1] + 1,
+                    previous[rhsIndex - 1] + substitutionCost
+                )
+            }
+            swap(&previous, &current)
+        }
+
+        return previous[rhsCharacters.count]
     }
 }

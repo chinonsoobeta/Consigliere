@@ -38,17 +38,18 @@ struct InstrumentSearchView: View {
 
     private var politicianResults: [Politician] {
         appState.politicians.filter { politician in
-            let matchesChamber = selectedChamber == nil || politician.chamber == selectedChamber
-            let matchesParty = switch selectedParty {
-            case .all: true
-            case .democratic: politician.party.localizedCaseInsensitiveContains("Democrat")
-            case .republican: politician.party.localizedCaseInsensitiveContains("Republican")
-            }
-            let terms = [politician.name, politician.state, politician.party, politician.partyAbbreviation]
-            let matchesQuery = query.isEmpty || terms.contains { $0.localizedCaseInsensitiveContains(query) }
-            return matchesChamber && matchesParty && matchesQuery
+            matchesPoliticianFilters(politician)
         }
-        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        .sorted { lhs, rhs in
+            let leftCount = appState.disclosureCount(for: lhs)
+            let rightCount = appState.disclosureCount(for: rhs)
+            if leftCount != rightCount { return leftCount > rightCount }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    private var disclosedPoliticianResults: [Politician] {
+        appState.politiciansWithDisclosures.filter(matchesPoliticianFilters)
     }
 
     var body: some View {
@@ -69,6 +70,13 @@ struct InstrumentSearchView: View {
                 } else {
                     if appState.disclosureLoadError != nil {
                         Section { disclosureErrorView }
+                    }
+                    if !disclosedPoliticianResults.isEmpty {
+                        Section {
+                            ForEach(disclosedPoliticianResults) { politician in
+                                NavigationLink(value: politician) { politicianRow(politician) }
+                            }
+                        } header: { Text("search.disclosedPoliticians \(disclosedPoliticianResults.count)") }
                     }
                     Section { partyFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
                     Section { chamberFilters.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
@@ -152,6 +160,19 @@ struct InstrumentSearchView: View {
         }.buttonStyle(.plain)
     }
 
+    private func matchesPoliticianFilters(_ politician: Politician) -> Bool {
+        let matchesChamber = selectedChamber == nil || politician.chamber == selectedChamber
+        let matchesParty = switch selectedParty {
+        case .all: true
+        case .democratic: politician.party.localizedCaseInsensitiveContains("Democrat")
+        case .republican: politician.party.localizedCaseInsensitiveContains("Republican")
+        }
+        let disclosureTerms = appState.disclosures(for: politician).flatMap { [$0.symbol, $0.assetName, $0.amountRange] }
+        let terms = [politician.name, politician.state, politician.party, politician.partyAbbreviation] + disclosureTerms
+        let matchesQuery = query.isEmpty || terms.contains { $0.localizedCaseInsensitiveContains(query) }
+        return matchesChamber && matchesParty && matchesQuery
+    }
+
     private func resultRow(_ instrument: MarketInstrument) -> some View {
         HStack(spacing: 12) {
             Image(systemName: instrument.kind.icon).foregroundStyle(ConsigliereTheme.gold).frame(width: 32, height: 32).background(ConsigliereTheme.gold.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
@@ -182,7 +203,7 @@ struct InstrumentSearchView: View {
                 Label(politician.chamber.label, systemImage: politician.chamber.icon).font(.caption2).foregroundStyle(.tertiary)
             }
             Spacer()
-            let tradeCount = appState.disclosures(for: politician).count
+            let tradeCount = appState.disclosureCount(for: politician)
             VStack(alignment: .trailing) {
                 Text(tradeCount.formatted()).font(.headline.monospacedDigit())
                 Text("search.disclosures").font(.caption2).foregroundStyle(.secondary)

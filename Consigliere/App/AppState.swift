@@ -40,6 +40,17 @@ final class AppState: ObservableObject {
         instruments.filter { watchlist.contains($0.symbol) }
     }
 
+    var politiciansWithDisclosures: [Politician] {
+        politicians
+            .filter { disclosureCount(for: $0) > 0 }
+            .sorted {
+                let leftCount = disclosureCount(for: $0)
+                let rightCount = disclosureCount(for: $1)
+                if leftCount != rightCount { return leftCount > rightCount }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+    }
+
     var portfolioSummary: PortfolioSummary {
         AnalysisEngine.summarize(holdings: holdings, instruments: instruments)
     }
@@ -80,6 +91,10 @@ final class AppState: ObservableObject {
 
     func disclosures(for politician: Politician) -> [DisclosureTrade] {
         disclosures.filter { $0.politicianID == politician.id }.sorted { $0.transactionDate > $1.transactionDate }
+    }
+
+    func disclosureCount(for politician: Politician) -> Int {
+        disclosures.filter { $0.politicianID == politician.id }.count
     }
 
     func coverage(for politician: Politician) -> [DisclosureCoverageYear] {

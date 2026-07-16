@@ -56,6 +56,7 @@
 "party.democratic" = "Demócratas";
 "party.republican" = "Republicanos";
 "search.politicianPrompt" = "Político, estado o partido";
+"search.disclosedPoliticians %lld" = "%lld miembros con declaraciones";
 "chamber.house" = "Cámara";
 "chamber.senate" = "Senado";
 "politician.coverage" = "Cobertura de declaraciones de diez años";

@@ -99,6 +99,7 @@
 "party.democratic" = "Democrats";
 "party.republican" = "Republicans";
 "search.politicianPrompt" = "Politician, state, or party";
+"search.disclosedPoliticians %lld" = "%lld members with disclosures";
 "search.politicianResults %lld" = "%lld sitting members";
 "search.rosterSource" = "Current-member directory from Congress.gov. Disclosure counts reflect available normalized prototype records.";
 "search.disclosures" = "disclosures";

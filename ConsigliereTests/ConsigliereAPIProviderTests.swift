@@ -2,6 +2,12 @@ import XCTest
 @testable import Consigliere
 
 final class ConsigliereAPIProviderTests: XCTestCase {
+    func testAPIConfigurationHasDefaultBackendURL() throws {
+        let baseURL = try XCTUnwrap(AppConfiguration.apiBaseURL)
+
+        XCTAssertEqual(baseURL.absoluteString, "https://consigliere-ingestion.chinonsoobeta.workers.dev")
+    }
+
     func testDecodesNormalizedBackendDisclosure() throws {
         let json = """
         {
@@ -59,5 +65,66 @@ final class ConsigliereAPIProviderTests: XCTestCase {
         XCTAssertEqual(resolver.resolve(providerID: nil, name: "Matthew Robert Van Epps"), "V000139")
         XCTAssertEqual(resolver.resolve(providerID: nil, name: "Richard W. Allen"), "A000372")
         XCTAssertEqual(resolver.resolve(providerID: nil, name: "Thomas H. Kean Jr"), "K000398")
+    }
+
+    func testResolvesFuzzyProviderNamesAtSeventyFivePercentConfidence() {
+        let politicians = [
+            Politician(id: "C001123", name: "Gilbert Ray Cisneros", party: "Democrat", state: "California", district: 31, chamber: .house, imageURL: nil, serviceStart: 2025),
+            Politician(id: "W000804", name: "Robert J. Wittman", party: "Republican", state: "Virginia", district: 1, chamber: .house, imageURL: nil, serviceStart: 2007)
+        ]
+        let resolver = PoliticianIdentityResolver(politicians: politicians)
+
+        XCTAssertEqual(resolver.resolve(providerID: nil, name: "Gilbert Cizneros"), "C001123")
+        XCTAssertEqual(resolver.resolve(providerID: nil, name: "Robrt Wittman"), "W000804")
+    }
+
+    func testFuzzyProviderNameRejectsEqualScoreAmbiguity() {
+        let politicians = [
+            Politician(id: "S000001", name: "Amy Smith", party: "Democrat", state: "Test", district: 1, chamber: .house, imageURL: nil, serviceStart: 2020),
+            Politician(id: "S000002", name: "Ann Smith", party: "Republican", state: "Test", district: 2, chamber: .house, imageURL: nil, serviceStart: 2020)
+        ]
+        let resolver = PoliticianIdentityResolver(politicians: politicians)
+
+        XCTAssertNil(resolver.resolve(providerID: nil, name: "A Smith"))
+    }
+
+    func testDebugMergeUsesPrototypeDisclosuresWhenBackendReturnsNone() {
+        let fallback = PoliticianPrototypeData.disclosures
+
+        let merged = HybridIntelligenceProvider.mergedDisclosures(primary: [], fallback: fallback)
+
+        XCTAssertEqual(merged, fallback)
+    }
+
+    func testDebugMergeKeepsPrototypeDisclosuresWithBackendRows() throws {
+        let backendTrade = try XCTUnwrap(makeTrade(politicianID: "L000560", symbol: "ABT"))
+        let fallback = PoliticianPrototypeData.disclosures
+
+        let merged = HybridIntelligenceProvider.mergedDisclosures(primary: [backendTrade], fallback: fallback)
+
+        XCTAssertEqual(merged.count, fallback.count + 1)
+        XCTAssertEqual(merged.first, backendTrade)
+        XCTAssertTrue(Set(fallback).isSubset(of: Set(merged)))
+    }
+
+    private func makeTrade(politicianID: String, symbol: String) -> DisclosureTrade? {
+        guard
+            let transactionDate = ISO8601DateFormatter().date(from: "2026-07-08T12:00:00Z"),
+            let filedDate = ISO8601DateFormatter().date(from: "2026-07-12T12:00:00Z"),
+            let sourceURL = URL(string: "https://example.com/filing.pdf")
+        else { return nil }
+        return DisclosureTrade(
+            id: UUID(),
+            politicianID: politicianID,
+            symbol: symbol,
+            assetName: "\(symbol) Common Stock",
+            type: .sale,
+            owner: .member,
+            amountRange: "$1,001 - $15,000",
+            transactionDate: transactionDate,
+            filedDate: filedDate,
+            sourceURL: sourceURL,
+            eventStudy: []
+        )
     }
 }
