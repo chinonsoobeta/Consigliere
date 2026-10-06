@@ -427,15 +427,22 @@ struct PoliticianIdentityResolver {
 
     private static let ignoredTokens: Set<String> = [
         "hon", "honorable", "sen", "senator", "rep", "representative", "dr", "mr", "mrs", "ms",
-        "jr", "sr", "ii", "iii", "iv"
+        "jr", "sr", "ii", "iii", "iv", "md", "facs", "phd", "dds", "cpa", "esq"
+    ]
+    private static let credentials: Set<String> = [
+        "md", "facs", "phd", "dds", "cpa", "esq", "jr", "sr", "ii", "iii", "iv"
     ]
 
     static func normalize(_ value: String) -> String {
         var candidate = value
+        // "Pelosi, Nancy" is surname-first; "Neal Patrick MD, FACS Dunn" only has a credential comma.
         if let comma = candidate.firstIndex(of: ","), comma != candidate.startIndex {
             let surname = candidate[..<comma]
             let given = candidate[candidate.index(after: comma)...]
-            candidate = "\(given) \(surname)"
+            let firstAfterComma = given.split(whereSeparator: { !$0.isLetter }).first.map { $0.lowercased() } ?? ""
+            candidate = credentials.contains(firstAfterComma)
+                ? candidate.replacingOccurrences(of: ",", with: " ")
+                : "\(given) \(surname)"
         }
         return candidate
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))

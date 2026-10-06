@@ -19,8 +19,10 @@ export const STATE_CODES = {
 
 const HONORIFICS = new Set([
   "hon", "honorable", "sen", "senator", "rep", "representative", "dr", "mr", "mrs", "ms",
-  "jr", "sr", "ii", "iii", "iv"
+  "jr", "sr", "ii", "iii", "iv", "md", "facs", "phd", "dds", "cpa", "esq"
 ]);
+
+const CREDENTIALS = new Set(["md", "facs", "phd", "dds", "cpa", "esq", "jr", "sr", "ii", "iii", "iv"]);
 
 const GIVEN_NAME_ALIASES = {
   bill: "william", will: "william", bob: "robert", rob: "robert", chris: "christopher",
@@ -44,8 +46,14 @@ export function stateCode(value) {
 
 export function normalizePersonName(value = "") {
   let text = String(value);
+  // "Pelosi, Nancy" is surname-first; "Neal Patrick MD, FACS Dunn" only has a credential comma.
   const comma = text.indexOf(",");
-  if (comma > 0) text = `${text.slice(comma + 1)} ${text.slice(0, comma)}`;
+  const afterComma = text.slice(comma + 1).trim().split(/[^A-Za-z]+/)[0]?.toLowerCase();
+  if (comma > 0 && !CREDENTIALS.has(afterComma)) {
+    text = `${text.slice(comma + 1)} ${text.slice(0, comma)}`;
+  } else {
+    text = text.replaceAll(",", " ");
+  }
   return text
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")

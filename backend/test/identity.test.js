@@ -40,6 +40,7 @@ test("refuses ambiguous surname matches and accepts unique ones with lower confi
 test("normalizes honorifics, suffixes, and Last, First order", () => {
   assert.equal(normalizePersonName("Hon. Pelosi, Nancy"), "nancy pelosi");
   assert.equal(normalizePersonName("Everton Blair Jr."), "everton blair");
+  assert.equal(normalizePersonName("Neal Patrick MD, Facs Dunn"), "neal patrick dunn");
   assert.deepEqual(houseStateDistrict("CA11"), { state: "CA", district: 11 });
   assert.deepEqual(houseStateDistrict("AK00"), { state: "AK", district: null });
 });
