@@ -25,6 +25,12 @@ struct TradeDetailView: View {
             Section {
                 LabeledContent("trade.amount") { Text(verbatim: trade.amountRange) }
                 LabeledContent("trade.owner") { Text(trade.owner.label) }
+                if let note = trade.assetDescription {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("trade.filerNote").foregroundStyle(.secondary)
+                        Text(verbatim: note)
+                    }
+                }
                 LabeledContent("event.transaction") { Text(trade.transactionDate, format: DisclosureDates.style(.long)) }
                 LabeledContent("event.filed") { Text(trade.filedDate, format: DisclosureDates.style(.long)) }
                 LabeledContent("trade.lag") {
@@ -67,6 +73,7 @@ struct TradeDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 TradeTypePill(type: trade.type)
+                if trade.isOption { OptionsTag() }
                 Spacer()
                 AmountText(amount: trade.amount).font(.title3.bold().monospacedDigit())
             }

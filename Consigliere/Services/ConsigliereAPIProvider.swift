@@ -194,7 +194,9 @@ struct ConsigliereAPIClient: IntelligenceProvider {
                 rankingScore: record.rankingScore,
                 rankingReasons: record.rankingReasons,
                 whyItMatters: record.whyItMatters,
-                observedAt: record.observedAt.flatMap(DisclosureDates.timestamp)
+                observedAt: record.observedAt.flatMap(DisclosureDates.timestamp),
+                assetType: record.assetType,
+                assetDescription: record.description
             )
         }
     }
@@ -300,6 +302,8 @@ private struct DisclosureRecord: Decodable {
     let district: Int?
     let matchConfidence: Double?
     let observedAt: String?
+    let assetType: String?
+    let description: String?
 }
 
 /// Fallback for records the backend has not yet matched. Mirrors backend/src/identity.js:

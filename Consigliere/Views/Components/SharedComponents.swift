@@ -272,6 +272,20 @@ struct TradeTypePill: View {
     }
 }
 
+/// Marks an options trade so it is not read as a trade in the stock itself.
+struct OptionsTag: View {
+    var body: some View {
+        Text("trade.options")
+            .font(.caption2.weight(.semibold))
+            .textCase(.uppercase)
+            .tracking(0.4)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(.secondary.opacity(0.5)))
+    }
+}
+
 /// "$1K–$15K", "$50M+", or the filed text when it cannot be parsed.
 struct AmountText: View {
     let amount: AmountRange
@@ -324,6 +338,7 @@ struct TradeRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     TradeTypePill(type: trade.type)
                     Text(verbatim: trade.displaySymbol).font(.headline.monospaced()).lineLimit(1)
+                    if trade.isOption { OptionsTag() }
                     Spacer(minLength: 8)
                     AmountText(amount: trade.amount)
                         .font(.subheadline.weight(.semibold).monospacedDigit())

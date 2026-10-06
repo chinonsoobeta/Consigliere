@@ -6,7 +6,7 @@ final class AppState: ObservableObject {
     private static let staleSourceInterval: TimeInterval = 36 * 60 * 60
     private static let latestWindowDays = 90
     private static let latestPages = 2
-    static let disclosureProviders = ["apify", "official-disclosures"]
+    static let disclosureProviders = ["apify", "house-ptr", "official-disclosures"]
 
     @Published private(set) var instruments: [MarketInstrument] = []
     @Published private(set) var events: [MarketEvent] = []

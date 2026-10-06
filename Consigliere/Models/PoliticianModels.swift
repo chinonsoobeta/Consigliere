@@ -94,6 +94,11 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     let whyItMatters: String
     /// When Consigliere first stored the record; drives "new since your last visit".
     let observedAt: Date?
+    /// The filing's asset-type code ("ST", "OP" for options, "GS" for government securities),
+    /// when the source reports one.
+    let assetType: String?
+    /// The filer's note on the asset, such as an option's strike and expiry.
+    let assetDescription: String?
 
     init(
         id: UUID, politicianID: String?, representative: String = "", chamber: Chamber? = nil, symbol: String, assetName: String,
@@ -101,7 +106,8 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
         transactionDate: Date, filedDate: Date, sourceURL: URL,
         eventStudy: [EventStudyPoint], freshness: DataFreshness = .delayed,
         confidence: Double = 1, rankingScore: Double = 0,
-        rankingReasons: [String] = [], whyItMatters: String = "", observedAt: Date? = nil
+        rankingReasons: [String] = [], whyItMatters: String = "", observedAt: Date? = nil,
+        assetType: String? = nil, assetDescription: String? = nil
     ) {
         self.id = id
         self.politicianID = politicianID
@@ -123,6 +129,8 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
         self.rankingReasons = rankingReasons
         self.whyItMatters = whyItMatters
         self.observedAt = observedAt
+        self.assetType = assetType
+        self.assetDescription = assetDescription
     }
 
     var disclosureLagDays: Int {
@@ -155,6 +163,9 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     }
 
     var amount: AmountRange { AmountRange(amountRange) }
+
+    /// Options on the named stock rather than the stock itself.
+    var isOption: Bool { assetType == "OP" }
 }
 
 /// Parsed congressional value band such as "$1,001 - $15,000" or "Over $50,000,000".

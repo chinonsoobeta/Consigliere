@@ -159,6 +159,8 @@
 "trade.details" = "Détails";
 "trade.amount" = "Valeur déclarée";
 "trade.owner" = "Titulaire";
+"trade.options" = "Options";
+"trade.filerNote" = "Note du déclarant";
 "trade.lag" = "Délai de déclaration";
 "trade.late.footer" = "Déclarée plus de 45 jours après l’opération, le délai maximal de la loi STOCK. Un retard peut avoir une explication légitime ; la déclaration originale peut le préciser.";
 "trade.notable" = "Pourquoi elle ressort";

@@ -159,6 +159,8 @@
 "trade.details" = "Details";
 "trade.amount" = "Reported value";
 "trade.owner" = "Owner";
+"trade.options" = "Options";
+"trade.filerNote" = "Filer’s note";
 "trade.lag" = "Time to report";
 "trade.late.footer" = "Reported more than 45 days after the trade, the STOCK Act’s outer deadline. Late reports can have innocent explanations; the original filing may say more.";
 "trade.notable" = "Why it stands out";

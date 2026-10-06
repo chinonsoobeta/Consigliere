@@ -163,7 +163,9 @@ final class ConsigliereAPIProviderTests: XCTestCase {
             "confidence": 0.95,
             "rankingScore": 0.84,
             "rankingReasons": ["Large reported value range"],
-            "whyItMatters": "A newly public disclosure."
+            "whyItMatters": "A newly public disclosure.",
+            "assetType": "OP",
+            "description": "Call options; Strike price $340; Expires 10/16/2026"
           }],
           "meta": {
             "count": 1,
@@ -184,6 +186,8 @@ final class ConsigliereAPIProviderTests: XCTestCase {
 
         XCTAssertEqual(page.disclosures.first?.politicianID, "P000197")
         XCTAssertEqual(page.nextCursor?.date, "2024-06-24")
+        XCTAssertEqual(page.disclosures.first?.isOption, true)
+        XCTAssertEqual(page.disclosures.first?.assetDescription, "Call options; Strike price $340; Expires 10/16/2026")
     }
 
     func testEveryRosterStateHasACode() throws {
