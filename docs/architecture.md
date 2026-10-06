@@ -6,7 +6,9 @@ The Worker owns credentials, retrieval, normalization, ranking, provenance, and 
 
 ## Source policy
 
-Official House and Senate filings are canonical provenance. The House collector reads the official annual disclosure index and preserves PTR documents as filing records. Structured House and Senate transactions are retrieved through the configured Apify actor and must retain official Clerk or Senate eFD document links. A filing that cannot be parsed remains a filing; it is never converted into an inferred trade.
+Official House and Senate filings are canonical provenance. The House collector reads the official annual disclosure index and preserves PTR documents as filing records. Electronically filed House PTRs are then read directly from the Clerk's PDFs: column positions come from each page's header row, and each row keeps its owner, asset-type code (`OP` marks options), ticker when the filer gave one, and the filer's note. Senate transactions, earlier House years, and House reports the reader has not replaced come from the configured Apify actor and must retain official Clerk or Senate eFD document links. A filing that cannot be parsed remains a filing; it is never converted into an inferred trade.
+
+`house_ptr_extractions` records one outcome per House report: `extracted`, `empty`, `needs-review` (warnings or a filing-ID mismatch; its Apify rows stay), `failed` (retried up to three times), or `paper` (a scan with no text layer). `disclosures.suppressed_by` holds rows back without deleting them: `shadow` for reader rows under comparison, `house-ptr` for Apify rows of a report the reader has replaced. Every query that serves disclosures requires `suppressed_by IS NULL`.
 
 Every displayed disclosure must link to the official filing. Truth Social monitoring and market quotes require licensed publisher/display access. Twelve Data attribution is retained in the normalized market record. Physical crude assessments remain unavailable until a suitable display license is configured.
 

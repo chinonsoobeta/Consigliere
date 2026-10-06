@@ -25,7 +25,8 @@ The app opens on **Latest** (recent filings, followed members, largest and late 
 The Worker stores normalized records and raw provider payloads in D1. Its adapters cover:
 
 - Official House filing metadata from the Clerk's annual ZIP index (there is no direct Senate eFD collector; Senate transactions come only from Apify)
-- Apify actor `pink_comic/congress-stock-trading-disclosures` for structured House and Senate transactions
+- House transactions read directly from the Clerk's electronically filed PTR PDFs (`backend/src/house-ptr.js`, provider `house-ptr`); scanned paper reports are not read yet
+- Apify actor `pink_comic/congress-stock-trading-disclosures` for Senate transactions, earlier House years, and House reports the PDF reader has not replaced
 - Licensed Truth Social monitoring
 - Licensed Twelve Data market data with attribution
 
@@ -59,7 +60,13 @@ npx wrangler d1 migrations apply consigliere-data --remote
 npx wrangler deploy
 ```
 
-Two crons run: `0 */12 * * *` syncs live sources, re-ranks the last 60 days, and matches new filers to politicians; `15 * * * *` processes one queued historical backfill job. Backfill jobs whose provider is skipped or unconfigured are deferred rather than failed.
+Three crons run: `0 */12 * * *` syncs live sources, re-ranks the last 60 days, and matches new filers to politicians; `15 * * * *` processes one queued historical backfill job; `45 * * * *` reads up to 30 unread House PTR PDFs. Backfill jobs whose provider is skipped or unconfigured are deferred rather than failed.
+
+`HOUSE_PTR_MODE` in `wrangler.toml` decides what the House PDF reader's rows do. `shadow` stores them without serving them; `live` serves them and holds back Apify's rows for each report the reader has replaced; `off` stops reading PDFs. Every run reconciles stored rows with the current mode, so switching back needs only a config change and a deploy. Reports that do not read cleanly are marked `needs-review` and keep their Apify rows. To compare the reader with whatever the production API serves:
+
+```sh
+node backend/scripts/validate-house-ptr.mjs --year 2026
+```
 
 Operational endpoints (bearer `SYNC_TOKEN`), each resumable with the returned `nextAfterID`:
 
