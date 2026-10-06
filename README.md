@@ -24,7 +24,7 @@ The app opens on **Latest** (recent filings, followed members, largest and late 
 
 The Worker stores normalized records and raw provider payloads in D1. Its adapters cover:
 
-- Official House filing metadata from the Clerk's annual ZIP index and a compliant Senate eFD collector
+- Official House filing metadata from the Clerk's annual ZIP index (there is no direct Senate eFD collector; Senate transactions come only from Apify)
 - Apify actor `pink_comic/congress-stock-trading-disclosures` for structured House and Senate transactions
 - Licensed Truth Social monitoring
 - Licensed Twelve Data market data with attribution
