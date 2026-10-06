@@ -13,10 +13,11 @@ Consigliere is an iOS political-market intelligence publication for self-directe
 
 ## Architecture
 
-The iOS app consumes one normalized endpoint from the Cloudflare Worker:
+The iOS app consumes two normalized endpoints from the Cloudflare Worker:
 
 ```text
-GET /v1/snapshot
+GET /v1/snapshot       ranked feed, source health, per-politician summaries, pending filings
+GET /v1/disclosures    paginated history (politician_id, representative, ticker, chamber, from/to)
 ```
 
 The Worker stores normalized records and raw provider payloads in D1. Its adapters cover:
@@ -36,7 +37,7 @@ Open `Consigliere.xcodeproj` in Xcode 15 or newer and run the `Consigliere` sche
 xcodegen generate
 ```
 
-Set `CONSILIERE_API_BASE_URL` to a migrated, configured Worker deployment. If it is absent or the service fails, Consigliere shows an explicit live-source error and never substitutes sample data.
+The app defaults to the production Worker; set `CONSIGLIERE_API_BASE_URL` (in the scheme environment or build settings) to point at another deployment such as `http://localhost:8787`. If it is absent or the service fails, Consigliere shows an explicit live-source error and never substitutes sample data.
 
 For the Worker:
 
@@ -50,6 +51,24 @@ npx wrangler dev
 Copy `.dev.vars.example` to `.dev.vars` and configure only the sources you are licensed to use. Production credentials must be stored with `wrangler secret put`. Never place an Apify token in the app bundle, Git history, or a committed URL.
 
 Apply every D1 migration before deploying a Worker revision. The sync path uses per-provider leases and writes an auditable `sync_runs` record, so overlapping scheduled and manual runs do not duplicate work.
+
+```sh
+npx wrangler d1 migrations apply consigliere-data --remote
+npx wrangler deploy
+```
+
+Two crons run: `0 */12 * * *` syncs live sources, re-ranks the last 60 days, and matches new filers to politicians; `15 * * * *` processes one queued historical backfill job. Backfill jobs whose provider is skipped or unconfigured are deferred rather than failed.
+
+Operational endpoints (bearer `SYNC_TOKEN`), each resumable with the returned `nextAfterID`:
+
+```text
+POST /internal/rematch   {"retryUnmatched": false, "afterID": null, "limit": 500}
+POST /internal/rerank    {"all": true, "afterID": null, "limit": 500}
+```
+
+Run both once after deploying migration `0006` so existing rows get politician IDs and current scores.
+
+The congressional roster is bundled at `Consigliere/Resources/Data/current-politicians.json` and shared by the app and Worker. Refresh it after elections or special elections with `node backend/scripts/update-roster.mjs`, then redeploy the Worker and ship an app build.
 
 ## Publishing and data rights
 

@@ -19,6 +19,15 @@ Every displayed disclosure must link to the official filing. Truth Social monito
 - `disclosures`: normalized transactions with official links
 - `sourceHealth`: per-provider availability and last successful sync
 - `coverage`: earliest/latest available normalized records by chamber
+- `politicianSummaries`: stored record count and date range per bioguide ID (all history, not just the snapshot window)
+- `unmatchedFilers`: filer names that could not be attributed to a sitting member, usually former members
+- `pendingFilings`: official House PTRs from the last 45 days whose transactions have not been extracted yet
+
+Disclosure items carry `politicianID` and `timePrecision: "date"`; filings have calendar dates only, so clients display them as UTC days rather than times. Clients must tolerate the newer fields being absent.
+
+## Identity
+
+Filers are resolved to bioguide IDs server-side (`backend/src/identity.js`) at ingestion, with the result and a `match_confidence` stored on each disclosure. Chamber and state are hard constraints; district and party only break ties because providers lag redistricting. Matching tiers are exact name, surname plus canonical given name, surname plus initial, unique surname within a state, then a guarded fuzzy match. Unmatched rows keep `match_confidence = 0` and are never dropped; the app falls back to the same rules for older rows.
 
 Each intelligence item includes a research-priority score, human-readable ranking reasons, a source URL, confidence, publication/retrieval timestamps, and a rules-derived “Why it matters” explanation. The latest licensed session move may be shown as broad current context; it is not labelled as a timestamp-aligned event reaction. True reaction windows remain hidden until historical intraday data is attached.
 
@@ -26,6 +35,8 @@ Each intelligence item includes a research-priority score, human-readable rankin
 
 Disclosure ranking weights public recency (30%), financial materiality (25%), political relevance (20%), current licensed market context (15%), and source confidence (10%). Superseded and ambiguous records receive penalties. The score prioritizes research attention and must never be presented as an investment signal.
 
+Because recency decays, scores are recomputed when served (`/v1/snapshot`, `/v1/disclosures`) and persisted for the last 60 days on every scheduled sync, so stored ordering never freezes at ingestion time.
+
 ## Coverage and failure behavior
 
-The app makes no fixed ten-year claim. Coverage is computed from available normalized records and labelled accordingly. Source outages, missing licenses, extraction failures, and empty datasets are visible to users with last-sync metadata and retry behavior; no fixture fallback is permitted.
+The app makes no fixed ten-year claim. Coverage is computed from available normalized records and labelled accordingly. Source outages, missing licenses, extraction failures, and empty datasets are visible to users with last-sync metadata; no fixture fallback is permitted. The app distinguishes a source that is not connected (no retry offered) from one that failed (retry offered), and warns on the Brief when a source has failed or has not succeeded in 36 hours.
