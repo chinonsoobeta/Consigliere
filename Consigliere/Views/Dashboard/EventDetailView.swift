@@ -22,7 +22,6 @@ struct EventDetailView: View {
                 analysisCard
                 rankingCard
                 methodology
-                DisclaimerBanner()
             }
             .padding()
         }

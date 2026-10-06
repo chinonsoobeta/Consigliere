@@ -1,19 +1,38 @@
 import SwiftUI
 
+enum RootTab: Hashable {
+    case latest, trades, members, markets, settings
+}
+
 struct RootTabView: View {
+    @EnvironmentObject private var appState: AppState
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @State private var selection = RootTab.latest
+
     var body: some View {
-        TabView {
-            DashboardView()
-                .tabItem { Label("tab.brief", systemImage: "newspaper.fill") }
-            IntelligenceLibraryView(scope: .disclosures)
-                .tabItem { Label("tab.disclosures", systemImage: IntelligenceLibraryScope.disclosures.icon) }
-            InstrumentSearchView()
-                .tabItem { Label("tab.research", systemImage: "magnifyingglass") }
-            IntelligenceLibraryView(scope: .markets)
-                .tabItem { Label("tab.markets", systemImage: IntelligenceLibraryScope.markets.icon) }
+        TabView(selection: $selection) {
+            HomeView(selectedTab: $selection)
+                .tabItem { Label("tab.latest", systemImage: "newspaper") }
+                .tag(RootTab.latest)
+            TradesView()
+                .tabItem { Label("tab.trades", systemImage: "list.bullet.rectangle") }
+                .tag(RootTab.trades)
+            MembersView()
+                .tabItem { Label("tab.members", systemImage: "person.2") }
+                .tag(RootTab.members)
+            if appState.marketsEnabled {
+                MarketsView()
+                    .tabItem { Label("tab.markets", systemImage: "chart.line.uptrend.xyaxis") }
+                    .tag(RootTab.markets)
+            }
             SettingsView()
-                .tabItem { Label("tab.settings", systemImage: "gearshape.fill") }
+                .tabItem { Label("tab.settings", systemImage: "gearshape") }
+                .tag(RootTab.settings)
         }
-        .tint(ConsigliereTheme.gold)
+        .tint(ConsigliereTheme.accent)
+        .sheet(isPresented: Binding(get: { !hasSeenOnboarding }, set: { if !$0 { hasSeenOnboarding = true } })) {
+            OnboardingView { hasSeenOnboarding = true }
+                .interactiveDismissDisabled()
+        }
     }
 }

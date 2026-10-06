@@ -37,7 +37,6 @@ struct InstrumentDetailView: View {
                     Text("instrument.relatedEvents").font(.title3.bold())
                     ForEach(relatedEvents) { EventCard(event: $0) }
                 }
-                DisclaimerBanner()
             }.padding()
         }
         .background(Color(uiColor: .systemGroupedBackground))

@@ -203,32 +203,6 @@ struct SourceAwareEmptyView: View {
     }
 }
 
-/// Warns when a source that should be producing data has failed or gone stale.
-struct SourceAlertBanner: View {
-    let sources: [SourceHealth]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("source.alert.title", systemImage: "exclamationmark.triangle.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.orange)
-            ForEach(sources) { source in
-                Group {
-                    if let lastSuccess = source.lastSuccessAt {
-                        Text("source.alert.lastSuccess \(source.displayName) \(lastSuccess, format: .relative(presentation: .named))")
-                    } else {
-                        Text("source.alert.never \(source.displayName)")
-                    }
-                }
-                .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-    }
-}
-
 struct PendingFilingRow: View {
     let filing: PendingFiling
 
@@ -237,8 +211,8 @@ struct PendingFilingRow: View {
             HStack(spacing: 12) {
                 Image(systemName: "doc.badge.clock")
                     .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 36)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                    .frame(width: 40, height: 40)
+                    .background(Color.secondary.opacity(0.12), in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
                     Text(filing.representative).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                     Text("pending.filed \(DisclosureDates.day(filing.filedDate) ?? .now, format: DisclosureDates.style())")
@@ -251,17 +225,182 @@ struct PendingFilingRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .consigliereCard()
     }
 }
 
-struct DisclaimerBanner: View {
+struct PoliticianAvatar: View {
+    let politician: Politician?
+    var fallbackName = ""
+    var size: CGFloat = 44
+
     var body: some View {
-        Label("disclaimer.short", systemImage: "info.circle")
-            .font(.caption)
+        AsyncImage(url: politician?.imageURL) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFill().frame(width: size, height: size, alignment: .top)
+            } else {
+                initials
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay { Circle().stroke(.primary.opacity(0.08), lineWidth: 1) }
+        .accessibilityHidden(true)
+    }
+
+    private var initials: some View {
+        let parts = (politician?.name ?? fallbackName).split(separator: " ")
+        let letters = [parts.first, parts.count > 1 ? parts.last : nil].compactMap { $0?.first }.map(String.init).joined()
+        let tint = politician?.partyColor ?? .secondary
+        return ZStack {
+            Circle().fill(tint.opacity(0.14))
+            Text(verbatim: letters).font(.system(size: size * 0.36, weight: .semibold)).foregroundStyle(tint)
+        }
+    }
+}
+
+struct TradeTypePill: View {
+    let type: DisclosureTransactionType
+    var body: some View {
+        Text(type.shortLabel)
+            .font(.caption2.weight(.heavy))
+            .textCase(.uppercase)
+            .tracking(0.4)
+            .foregroundStyle(type.color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(type.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+    }
+}
+
+/// "$1K–$15K", "$50M+", or the filed text when it cannot be parsed.
+struct AmountText: View {
+    let amount: AmountRange
+    // Currency compact notation needs iOS 18; filings are always in U.S. dollars.
+    private static let style = FloatingPointFormatStyle<Double>.number.notation(.compactName)
+
+    var body: some View {
+        switch (amount.lower, amount.upper) {
+        case let (lower?, upper?):
+            dollars(lower) + Text(verbatim: "–") + dollars(upper)
+        case let (lower?, nil):
+            dollars(lower) + Text(verbatim: "+")
+        default:
+            Text(verbatim: amount.raw)
+        }
+    }
+
+    private func dollars(_ value: Double) -> Text {
+        Text(verbatim: "$") + Text(value, format: Self.style)
+    }
+}
+
+struct ChamberTag: View {
+    let chamber: Chamber
+    var body: some View {
+        Text(chamber.label)
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.12), in: Capsule())
+    }
+}
+
+/// A single transaction. With `showsMember` the row leads with who traded; without it (inside a
+/// filing or profile) it leads with what was traded.
+struct TradeRow: View {
+    @EnvironmentObject private var appState: AppState
+    let trade: DisclosureTrade
+    var showsMember = true
+
+    private var politician: Politician? { appState.politician(id: trade.politicianID) }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            if showsMember {
+                PoliticianAvatar(politician: politician, fallbackName: trade.representative, size: 40)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    TradeTypePill(type: trade.type)
+                    Text(verbatim: trade.displaySymbol).font(.headline.monospaced()).lineLimit(1)
+                    Spacer(minLength: 8)
+                    AmountText(amount: trade.amount)
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                }
+                if showsMember {
+                    (Text(verbatim: politician?.name ?? trade.representative).foregroundStyle(.primary)
+                        + Text(verbatim: politician.map { " · \($0.shortLabel)" } ?? "").foregroundStyle(.secondary))
+                        .font(.subheadline)
+                        .lineLimit(1)
+                } else {
+                    Text(verbatim: trade.assetName).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+                detailLine.font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var detailLine: Text {
+        var line = Text("trade.dates \(trade.transactionDate, format: DisclosureDates.compact(trade.transactionDate)) \(trade.filedDate, format: DisclosureDates.compact(trade.filedDate))")
+        if trade.owner != .member { line = line + Text(verbatim: " · ") + Text(trade.owner.label) }
+        if trade.isLate { line = line + Text(verbatim: " · ") + Text("trade.late").foregroundStyle(.orange) }
+        return line
+    }
+}
+
+/// One periodic transaction report, summarised as its largest distinct trades.
+struct FilingRow: View {
+    @EnvironmentObject private var appState: AppState
+    let filing: TradeFiling
+    var emphasizesLag = false
+
+    private var politician: Politician? { appState.politician(id: filing.politicianID) }
+
+    private var highlights: (shown: [DisclosureTrade], more: Int) {
+        var seen = Set<String>()
+        let distinct = filing.bySize.filter { seen.insert("\($0.type.rawValue)|\($0.displaySymbol)").inserted }
+        return (Array(distinct.prefix(2)), max(distinct.count - 2, 0))
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            PoliticianAvatar(politician: politician, fallbackName: filing.representative, size: 44)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(verbatim: politician?.name ?? filing.representative).font(.headline).lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(filing.filedDate, format: DisclosureDates.compact(filing.filedDate)).font(.caption).foregroundStyle(.secondary)
+                }
+                if let politician {
+                    HStack(spacing: 6) {
+                        Text(verbatim: politician.shortLabel).font(.caption.weight(.semibold)).foregroundStyle(politician.partyColor)
+                        ChamberTag(chamber: politician.chamber)
+                    }
+                }
+                summary.font(.subheadline).foregroundStyle(.primary).lineLimit(2)
+                if emphasizesLag {
+                    Text("filing.lateBy \(filing.maxLagDays)").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                }
+            }
+        }
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var summary: Text {
+        let (shown, more) = highlights
+        var text = Text(verbatim: "")
+        for (index, trade) in shown.enumerated() {
+            if index > 0 { text = text + Text(verbatim: " · ") }
+            text = text + trade.type.headline(trade.displaySymbol)
+        }
+        if more > 0 { text = text + Text(verbatim: " ") + Text("filing.more \(more)").foregroundStyle(.secondary) }
+        return text
     }
 }

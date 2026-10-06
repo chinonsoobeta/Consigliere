@@ -2,8 +2,11 @@ import SwiftUI
 
 @MainActor
 final class AppState: ObservableObject {
-    private static let maxDisclosurePages = 20
+    nonisolated private static let maxDisclosurePages = 20
     private static let staleSourceInterval: TimeInterval = 36 * 60 * 60
+    private static let latestWindowDays = 90
+    private static let latestPages = 2
+    static let disclosureProviders = ["apify", "official-disclosures"]
 
     @Published private(set) var instruments: [MarketInstrument] = []
     @Published private(set) var events: [MarketEvent] = []
@@ -14,6 +17,9 @@ final class AppState: ObservableObject {
     @Published private(set) var unmatchedFilers: [UnmatchedFiler] = []
     @Published private(set) var pendingFilings: [PendingFiling] = []
     @Published private(set) var politiciansWithDisclosures: [Politician] = []
+    /// Most recently filed trades across Congress, newest filing first.
+    @Published private(set) var latestTrades: [DisclosureTrade] = [] { didSet { latestFilings = TradeFiling.group(latestTrades) } }
+    @Published private(set) var latestFilings: [TradeFiling] = []
     @Published private(set) var disclosureLoadError: String?
     @Published private(set) var loadingPoliticianIDs: Set<String> = []
     @Published private(set) var hasAttemptedLoad = false
@@ -23,6 +29,8 @@ final class AppState: ObservableObject {
     @AppStorage("appearance") private var storedAppearance = Appearance.system.rawValue
     @AppStorage("language") private var storedLanguage = AppLanguage.usEnglish.rawValue
     @AppStorage("watchlist") private var storedWatchlist = "SPY,QQQ,DIA"
+    @AppStorage("following") private var storedFollowing = ""
+    @AppStorage("lastVisit") private var storedLastVisit: Double = 0
 
     private let providerFactory: () -> any IntelligenceProvider
     private var hasLoaded = false
@@ -30,8 +38,13 @@ final class AppState: ObservableObject {
     private var disclosuresByPolitician: [String: [DisclosureTrade]] = [:]
     private var politiciansByID: [String: Politician] = [:]
 
+    /// The previous session's visit, captured at launch so "new" survives this session's refreshes.
+    let previousVisit: Date?
+
     init(providerFactory: @escaping () -> any IntelligenceProvider = ProviderFactory.makeDefault) {
         self.providerFactory = providerFactory
+        let stored = UserDefaults.standard.double(forKey: "lastVisit")
+        previousVisit = stored > 0 ? Date(timeIntervalSince1970: stored) : nil
     }
 
     convenience init(provider: any IntelligenceProvider) {
@@ -54,6 +67,45 @@ final class AppState: ObservableObject {
 
     var watchedInstruments: [MarketInstrument] {
         instruments.filter { watchlist.contains($0.symbol) }
+    }
+
+    var followedIDs: Set<String> {
+        Set(storedFollowing.split(separator: ",").map(String.init))
+    }
+
+    var followedPoliticians: [Politician] {
+        let ids = followedIDs
+        return politicians.filter { ids.contains($0.id) }.sorted { $0.name < $1.name }
+    }
+
+    func isFollowing(_ politician: Politician) -> Bool { followedIDs.contains(politician.id) }
+
+    func toggleFollow(_ politician: Politician) {
+        var ids = followedIDs
+        if ids.contains(politician.id) { ids.remove(politician.id) } else { ids.insert(politician.id) }
+        storedFollowing = ids.sorted().joined(separator: ",")
+        objectWillChange.send()
+    }
+
+    /// Filings first stored after the previous visit. Empty on first launch.
+    var newFilingsSinceLastVisit: [TradeFiling] {
+        guard let previousVisit else { return [] }
+        return latestFilings.filter { ($0.observedAt ?? .distantPast) > previousVisit }
+    }
+
+    /// Market quotes are optional; hide market UI entirely until a quote source is connected.
+    var marketsEnabled: Bool {
+        !instruments.isEmpty || (health(for: "twelve-data").map { $0.status != .unconfigured } ?? false)
+    }
+
+    var posts: [MarketEvent] { events.filter { $0.source == .truthSocial } }
+
+    var disclosureSourcesDelayed: Bool {
+        sourceAlerts.contains { Self.disclosureProviders.contains($0.provider) }
+    }
+
+    var lastDisclosureSync: Date? {
+        Self.disclosureProviders.compactMap { health(for: $0)?.lastSuccessAt }.max()
     }
 
     /// True until the first snapshot request finishes, so views show progress rather than empty states.
@@ -106,6 +158,8 @@ final class AppState: ObservableObject {
             unmatchedFilers = snapshot.unmatchedFilers
             pendingFilings = snapshot.pendingFilings
             hasLoaded = true
+            await loadLatest(fallback: snapshot.disclosures)
+            storedLastVisit = Date.now.timeIntervalSince1970
         } catch {
             disclosureLoadError = error.localizedDescription
             instruments = []
@@ -117,7 +171,26 @@ final class AppState: ObservableObject {
             availableCoverage = []
             unmatchedFilers = []
             pendingFilings = []
+            latestTrades = []
         }
+    }
+
+    /// Loads the newest filings by filing date. The snapshot is ranked by research priority, so it
+    /// is only a fallback when the dated feed cannot be fetched.
+    private func loadLatest(fallback: [DisclosureTrade]) async {
+        let from = DisclosureDates.calendar.date(byAdding: .day, value: -Self.latestWindowDays, to: .now)
+        do {
+            let fetched = try await fetchDisclosures(
+                DisclosureQuery(from: from, dateBasis: .filed, limit: 500),
+                maxPages: Self.latestPages
+            )
+            latestTrades = fetched.isEmpty ? fallback : fetched
+        } catch {
+            latestTrades = fallback
+        }
+        let known = Set(disclosures.map(\.id))
+        let additions = latestTrades.filter { !known.contains($0.id) }
+        if !additions.isEmpty { disclosures.append(contentsOf: additions) }
     }
 
     func toggleWatchlist(_ instrument: MarketInstrument) {
@@ -168,7 +241,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func fetchDisclosures(_ query: DisclosureQuery) async throws -> [DisclosureTrade] {
+    private func fetchDisclosures(_ query: DisclosureQuery, maxPages: Int = AppState.maxDisclosurePages) async throws -> [DisclosureTrade] {
         let provider = providerFactory()
         var cursor: DisclosureCursor?
         var fetched: [DisclosureTrade] = []
@@ -190,7 +263,7 @@ final class AppState: ObservableObject {
             fetched.append(contentsOf: page.disclosures)
             cursor = page.nextCursor
             pages += 1
-        } while cursor != nil && pages < Self.maxDisclosurePages
+        } while cursor != nil && pages < maxPages
         return fetched
     }
 
@@ -198,6 +271,18 @@ final class AppState: ObservableObject {
     /// records currently loaded on device.
     func disclosureCount(for politician: Politician) -> Int {
         max(politicianSummaries[politician.id]?.records ?? 0, disclosuresByPolitician[politician.id]?.count ?? 0)
+    }
+
+    func stats(for politician: Politician) -> TradingStats? {
+        let trades = disclosures(for: politician)
+        return trades.isEmpty ? nil : TradingStats(trades: trades)
+    }
+
+    /// Members ranked by trades in the latest window.
+    var mostActive: [(politician: Politician, trades: Int)] {
+        let counts = Dictionary(grouping: latestTrades.compactMap(\.politicianID), by: { $0 }).mapValues(\.count)
+        return counts.compactMap { id, count in politiciansByID[id].map { ($0, count) } }
+            .sorted { $0.trades != $1.trades ? $0.trades > $1.trades : $0.politician.name < $1.politician.name }
     }
 
     func coverage(for politician: Politician) -> DisclosureCoverageSummary? {

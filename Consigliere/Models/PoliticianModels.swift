@@ -26,13 +26,37 @@ struct Politician: Identifiable, Hashable, Codable {
         if party.localizedCaseInsensitiveContains("Republican") { return "R" }
         return "I"
     }
+
+    var partyColor: Color {
+        switch partyAbbreviation {
+        case "D": .blue
+        case "R": .red
+        default: .secondary
+        }
+    }
+
+    /// Compact newsroom label: "D-NJ" for senators and at-large seats, "D-NJ-5" otherwise.
+    var shortLabel: String {
+        let code = StateCodes.code(for: state) ?? state
+        return district.map { "\(partyAbbreviation)-\(code)-\($0)" } ?? "\(partyAbbreviation)-\(code)"
+    }
 }
 
 enum DisclosureTransactionType: String, Codable, CaseIterable {
     case purchase, sale, exchange
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "trade.\(rawValue)") }
+    /// One-word pill label: Buy, Sell, Exchange.
+    var shortLabel: LocalizedStringKey { LocalizedStringKey(stringLiteral: "trade.short.\(rawValue)") }
     var color: Color { self == .purchase ? ConsigliereTheme.positive : (self == .sale ? ConsigliereTheme.negative : .blue) }
-    var icon: String { self == .purchase ? "arrow.down.to.line" : (self == .sale ? "arrow.up.to.line" : "arrow.left.arrow.right") }
+
+    /// Past-tense headline such as "Sold MSFT".
+    func headline(_ symbol: String) -> Text {
+        switch self {
+        case .purchase: Text("trade.headline.purchase \(symbol)")
+        case .sale: Text("trade.headline.sale \(symbol)")
+        case .exchange: Text("trade.headline.exchange \(symbol)")
+        }
+    }
 }
 
 enum DisclosureOwner: String, Codable {
@@ -68,6 +92,8 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     let rankingScore: Double
     let rankingReasons: [String]
     let whyItMatters: String
+    /// When Consigliere first stored the record; drives "new since your last visit".
+    let observedAt: Date?
 
     init(
         id: UUID, politicianID: String?, representative: String = "", chamber: Chamber? = nil, symbol: String, assetName: String,
@@ -75,14 +101,14 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
         transactionDate: Date, filedDate: Date, sourceURL: URL,
         eventStudy: [EventStudyPoint], freshness: DataFreshness = .delayed,
         confidence: Double = 1, rankingScore: Double = 0,
-        rankingReasons: [String] = [], whyItMatters: String = ""
+        rankingReasons: [String] = [], whyItMatters: String = "", observedAt: Date? = nil
     ) {
         self.id = id
         self.politicianID = politicianID
         self.representative = representative
         self.chamber = chamber
         self.symbol = symbol
-        self.assetName = assetName
+        self.assetName = Self.cleanAssetName(assetName)
         self.type = type
         self.owner = owner
         self.amountRange = amountRange
@@ -95,6 +121,7 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
         self.rankingScore = rankingScore
         self.rankingReasons = rankingReasons
         self.whyItMatters = whyItMatters
+        self.observedAt = observedAt
     }
 
     var disclosureLagDays: Int {
@@ -102,6 +129,97 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     }
 
     func returnAt(day: Int) -> EventStudyPoint? { eventStudy.first { $0.tradingDay == day } }
+
+    /// The STOCK Act's outer limit: reports are due within 45 days of the transaction.
+    static let lateFilingDays = 45
+    var isLate: Bool { disclosureLagDays > Self.lateFilingDays }
+
+    /// House PDF extraction can keep the report's row number ("2000140445   Alphabet Inc. …").
+    static func cleanAssetName(_ name: String) -> String {
+        name.replacing(/^\d{6,}\s+/, with: "")
+            .replacing(/\s{2,}/, with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var displaySymbol: String {
+        let trimmed = symbol.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty || trimmed == "--" ? assetName : trimmed
+    }
+
+    var amount: AmountRange { AmountRange(amountRange) }
+}
+
+/// Parsed congressional value band such as "$1,001 - $15,000" or "Over $50,000,000".
+struct AmountRange: Hashable {
+    let lower: Double?
+    let upper: Double?
+    let raw: String
+
+    init(_ raw: String) {
+        self.raw = raw
+        let numbers = raw.matches(of: /[0-9][0-9,]*(\.[0-9]+)?/).compactMap {
+            Double($0.output.0.replacingOccurrences(of: ",", with: ""))
+        }
+        // Bands start one dollar above a round number ($1,001); show the round number.
+        lower = numbers.first.map { $0.truncatingRemainder(dividingBy: 1000) == 1 ? $0 - 1 : $0 }
+        upper = numbers.count > 1 ? numbers[1] : nil
+    }
+
+    /// Best available magnitude for ranking: the band's ceiling, or its floor for "Over $X".
+    var sortValue: Double { upper ?? lower ?? 0 }
+}
+
+/// One periodic transaction report: every trade that shares a source document.
+struct TradeFiling: Identifiable, Hashable {
+    var id: URL { sourceURL }
+    let sourceURL: URL
+    let trades: [DisclosureTrade]
+
+    var politicianID: String? { trades.first?.politicianID }
+    var representative: String { trades.first?.representative ?? "" }
+    var chamber: Chamber? { trades.first?.chamber }
+    var filedDate: Date { trades.map(\.filedDate).max() ?? .distantPast }
+    var observedAt: Date? { trades.compactMap(\.observedAt).min() }
+    var maxLagDays: Int { trades.map(\.disclosureLagDays).max() ?? 0 }
+    var isLate: Bool { trades.contains(where: \.isLate) }
+    /// Trades ordered by reported size, largest first.
+    var bySize: [DisclosureTrade] { trades.sorted { $0.amount.sortValue > $1.amount.sortValue } }
+
+    static func group(_ trades: [DisclosureTrade]) -> [TradeFiling] {
+        Dictionary(grouping: trades, by: \.sourceURL)
+            .map { TradeFiling(sourceURL: $0.key, trades: $0.value.sorted { $0.transactionDate > $1.transactionDate }) }
+            .sorted {
+                if $0.filedDate != $1.filedDate { return $0.filedDate > $1.filedDate }
+                let lhs = $0.observedAt ?? .distantPast, rhs = $1.observedAt ?? .distantPast
+                if lhs != rhs { return lhs > rhs }
+                // Dictionary order is random; keep same-day filings in a stable order.
+                return $0.sourceURL.absoluteString < $1.sourceURL.absoluteString
+            }
+    }
+}
+
+/// Trading pattern for one member, computed from the records loaded on device.
+struct TradingStats: Hashable {
+    let total: Int
+    let lastYear: Int
+    let buys: Int
+    let sells: Int
+    let medianLagDays: Int?
+    let lateCount: Int
+    let topSymbols: [String]
+
+    init(trades: [DisclosureTrade], now: Date = .now) {
+        let cutoff = DisclosureDates.calendar.date(byAdding: .year, value: -1, to: now) ?? now
+        total = trades.count
+        lastYear = trades.filter { $0.transactionDate >= cutoff }.count
+        buys = trades.filter { $0.type == .purchase }.count
+        sells = trades.filter { $0.type == .sale }.count
+        let lags = trades.map(\.disclosureLagDays).filter { $0 >= 0 }.sorted()
+        medianLagDays = lags.isEmpty ? nil : lags[lags.count / 2]
+        lateCount = trades.filter(\.isLate).count
+        let counts = Dictionary(grouping: trades.map(\.displaySymbol).filter { $0.count <= 6 }, by: { $0 }).mapValues(\.count)
+        topSymbols = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.prefix(5).map(\.key)
+    }
 }
 
 /// Per-politician totals across all stored disclosures, not just the snapshot window.

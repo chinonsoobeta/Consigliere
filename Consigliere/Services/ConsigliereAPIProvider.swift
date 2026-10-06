@@ -193,7 +193,8 @@ struct ConsigliereAPIClient: IntelligenceProvider {
                 confidence: record.confidence,
                 rankingScore: record.rankingScore,
                 rankingReasons: record.rankingReasons,
-                whyItMatters: record.whyItMatters
+                whyItMatters: record.whyItMatters,
+                observedAt: record.observedAt.flatMap(DisclosureDates.timestamp)
             )
         }
     }
@@ -238,6 +239,16 @@ enum DisclosureDates {
     /// language (the environment locale) is respected.
     static func style(_ style: Date.FormatStyle.DateStyle = .abbreviated) -> Date.FormatStyle {
         var format = Date.FormatStyle(date: style, time: .omitted)
+        format.timeZone = utc
+        return format
+    }
+
+    /// "Sep 17" this year, "Sep 17, 2025" otherwise, keeping dense rows short.
+    static func compact(_ date: Date, now: Date = .now) -> Date.FormatStyle {
+        var format = Date.FormatStyle().month(.abbreviated).day()
+        if calendar.component(.year, from: date) != calendar.component(.year, from: now) {
+            format = format.year()
+        }
         format.timeZone = utc
         return format
     }
@@ -288,6 +299,7 @@ private struct DisclosureRecord: Decodable {
     let state: String?
     let district: Int?
     let matchConfidence: Double?
+    let observedAt: String?
 }
 
 /// Fallback for records the backend has not yet matched. Mirrors backend/src/identity.js:
