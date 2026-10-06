@@ -39,7 +39,24 @@ export function whyDisclosureMatters(record) {
   const timing = lag == null
     ? "The source dates require review."
     : `The transaction preceded public disclosure by ${lag} days.`;
-  return `A ${record.chamber ?? "congressional"} filing newly reported a ${action} of ${record.assetName} (${record.ticker}) in the ${record.amountRange} range. ${timing} ${context}`;
+  const chamber = record.chamber === "senate" ? "Senate" : record.chamber === "house" ? "House" : "congressional";
+  const asset = String(record.assetName ?? "").includes(`(${record.ticker})`)
+    ? record.assetName
+    : `${record.assetName} (${record.ticker})`;
+  return `A ${chamber} filing reported a ${action} of ${asset} in the ${record.amountRange} range. ${timing} ${context}`;
+}
+
+// Scores depend on the current time, so stored scores go stale as filings age.
+// Re-derive them whenever records are served or periodically re-persisted.
+export function rescoreDisclosure(record, marketMovePercent = null, now = new Date()) {
+  const enriched = { ...record, marketMovePercent };
+  const ranking = rankDisclosure(enriched, now);
+  return {
+    ...record,
+    rankingScore: ranking.score,
+    rankingReasons: ranking.reasons,
+    whyItMatters: whyDisclosureMatters(enriched)
+  };
 }
 
 export function rankSocialPost(record, now = new Date()) {

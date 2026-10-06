@@ -5076,7 +5076,7 @@
     "state": "Oklahoma",
     "district": null,
     "chamber": "senate",
-    "imageURL": null,
+    "imageURL": "https://www.congress.gov/img/member/a000383_200.jpg",
     "serviceStart": 2026
   },
   {
@@ -5358,5 +5358,35 @@
     "chamber": "senate",
     "imageURL": "https://www.congress.gov/img/member/b001261_200.jpg",
     "serviceStart": 2007
+  },
+  {
+    "id": "W000832",
+    "name": "Aisha Wahab",
+    "party": "Democratic",
+    "state": "California",
+    "district": 14,
+    "chamber": "house",
+    "imageURL": "https://www.congress.gov/img/member/w000832_200.jpg",
+    "serviceStart": 2026
+  },
+  {
+    "id": "B001328",
+    "name": "Everton Blair Jr.",
+    "party": "Democratic",
+    "state": "Georgia",
+    "district": 13,
+    "chamber": "house",
+    "imageURL": "https://www.congress.gov/img/member/b001328_200.jpg",
+    "serviceStart": 2026
+  },
+  {
+    "id": "G000608",
+    "name": "Darline Graham",
+    "party": "Republican",
+    "state": "South Carolina",
+    "district": null,
+    "chamber": "senate",
+    "imageURL": "https://www.congress.gov/img/member/g000608_200.jpg",
+    "serviceStart": 2026
   }
 ]

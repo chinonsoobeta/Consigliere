@@ -6,7 +6,8 @@ import {
   normalizeTruthRows, parseHouseIndex
 } from "../src/providers.js";
 import { dateOnly, normalizeOwner, normalizeTransaction } from "../src/normalization.js";
-import { rankDisclosure, whyDisclosureMatters } from "../src/ranking.js";
+import { rankDisclosure, rescoreDisclosure, whyDisclosureMatters } from "../src/ranking.js";
+import { backfillDeferral } from "../src/worker.js";
 
 test("parses official House PTR metadata and ignores non-PTR filings", () => {
   const text = [
@@ -147,4 +148,34 @@ test("normalizes the configured Truth Social actor schema", () => {
   assert.equal(rows[0].author, "Donald J. Trump");
   assert.equal(rows[0].body, "Tariffs and trade policy update.");
   assert.deepEqual(rows[0].policyTopics, ["Trade"]);
+});
+
+test("re-scoring removes the newly-public signal as a filing ages", () => {
+  const record = {
+    reportDate: "2026-09-17", transactionDate: "2026-08-20", amountRange: "$15,001 - $50,000",
+    chamber: "senate", ticker: "WMB", assetName: "Williams Companies", transactionType: "purchase",
+    confidence: 0.95
+  };
+  const fresh = rescoreDisclosure(record, null, new Date("2026-09-18T12:00:00Z"));
+  const aged = rescoreDisclosure(record, null, new Date("2026-10-06T12:00:00Z"));
+  assert.ok(fresh.rankingReasons.includes("Newly public disclosure"));
+  assert.ok(!aged.rankingReasons.includes("Newly public disclosure"));
+  assert.ok(aged.rankingScore < fresh.rankingScore);
+});
+
+test("explanations capitalize chambers and do not repeat a ticker already in the asset name", () => {
+  const text = whyDisclosureMatters({
+    reportDate: "2026-09-14", transactionDate: "2026-08-14", amountRange: "$500,001 - $1,000,000",
+    chamber: "house", ticker: "MSFT", assetName: "Microsoft Corporation - Common Stock (MSFT)",
+    transactionType: "purchase"
+  });
+  assert.match(text, /^A House filing reported a purchase of Microsoft Corporation - Common Stock \(MSFT\) in/);
+  assert.doesNotMatch(text, /\(MSFT\) \(MSFT\)/);
+});
+
+test("backfill jobs that never ran are deferred rather than completed", () => {
+  assert.equal(backfillDeferral({ status: "skipped", message: "Sync already running" }), "Sync already running");
+  assert.equal(backfillDeferral({ status: "unconfigured", message: "Not configured" }), "Not configured");
+  assert.equal(backfillDeferral({ status: "available", recordsSeen: 0 }), null);
+  assert.equal(backfillDeferral({ status: "degraded", message: "No filings returned by Apify" }), null);
 });

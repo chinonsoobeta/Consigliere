@@ -5,7 +5,9 @@ workers_dev = true
 preview_urls = false
 
 [triggers]
-crons = ["0 */12 * * *"]
+# 12-hourly: live sync, re-ranking, identity matching. Hourly: queued historical backfill
+# (idle and free when the queue is empty) plus identity matching for newly stored rows.
+crons = ["0 */12 * * *", "15 * * * *"]
 
 [[d1_databases]]
 binding = "DB"
