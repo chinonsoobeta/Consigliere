@@ -20,6 +20,8 @@ GET /v1/snapshot       ranked feed, source health, per-politician summaries, pen
 GET /v1/disclosures    paginated history (politician_id, representative, ticker, chamber, from/to)
 ```
 
+The app opens on **Latest** (recent filings, followed members, largest and late trades), with **Trades**, **Members**, and **Settings** tabs; **Markets** appears once licensed market data is connected. See [docs/architecture.md](docs/architecture.md#app-structure).
+
 The Worker stores normalized records and raw provider payloads in D1. Its adapters cover:
 
 - Official House filing metadata from the Clerk's annual ZIP index and a compliant Senate eFD collector

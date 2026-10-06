@@ -39,4 +39,16 @@ Because recency decays, scores are recomputed when served (`/v1/snapshot`, `/v1/
 
 ## Coverage and failure behavior
 
-The app makes no fixed ten-year claim. Coverage is computed from available normalized records and labelled accordingly. Source outages, missing licenses, extraction failures, and empty datasets are visible to users with last-sync metadata; no fixture fallback is permitted. The app distinguishes a source that is not connected (no retry offered) from one that failed (retry offered), and warns on the Brief when a source has failed or has not succeeded in 36 hours.
+The app makes no fixed ten-year claim. Coverage is computed from available normalized records and labelled accordingly. Source outages, missing licenses, extraction failures, and empty datasets are visible to users with last-sync metadata; no fixture fallback is permitted. The app distinguishes a source that is not connected (no retry offered) from one that failed (retry offered), and warns on the Latest tab when a source has failed or has not succeeded in 36 hours.
+
+## App structure
+
+The app has four tabs (five once licensed market data is connected):
+
+- **Latest** groups the last 90 days of filings (`/v1/disclosures?date_basis=filed`) into periodic transaction reports by source document, then surfaces followed members, the newest filings, the largest trades, the most active members, and late reports.
+- **Trades** lists the same window trade by trade, filterable by buys and sells and searchable by ticker, company, or member, with filings awaiting extraction kept separate.
+- **Members** covers the full roster, with follows and filters by party and chamber, plus filers who could not be matched to a sitting member.
+- **Markets** appears only when instruments are available or the market data source is configured.
+- **Settings** holds appearance, language, source health, methodology, and legal pages.
+
+A report is "late" when it was filed more than 45 days after the transaction, the STOCK Act's outer deadline. Follows and the last-visit time are stored on device only.
