@@ -1,6 +1,9 @@
 import {
-  collectApifyDisclosures, collectMarketData, collectOfficialFilings, collectTruthPosts
+  collectApifyDisclosures, collectMarketData, collectOfficialFilings, collectTruthPosts, fetchHouseReport
 } from "./providers.js";
+import {
+  HOUSE_PTR_PARSER_VERSION, housePTRDisclosures, isElectronicHouseFiling, readHousePTR
+} from "./house-ptr.js";
 import {
   rankDisclosure, rankSocialPost, rescoreDisclosure, whyDisclosureMatters
 } from "./ranking.js";
@@ -10,6 +13,7 @@ import roster from "./roster.js";
 
 const EXPECTED_SOURCES = [
   ["official-disclosures", "Official House disclosure index"],
+  ["house-ptr", "House reports read from the Clerk's PDFs"],
   ["apify", "Structured House and Senate disclosures"],
   ["truth-api", "Truth Social political monitoring"],
   ["twelve-data", "Licensed market data"]
@@ -18,17 +22,22 @@ const MAX_INTERNAL_BODY_BYTES = 4096;
 const SYNC_LOCK_MS = 15 * 60_000;
 const BACKFILL_LEASE_MS = 2 * 3_600_000;
 const BACKFILL_CRON = "15 * * * *";
+const HOUSE_PTR_CRON = "45 * * * *";
+const HOUSE_PTR_BATCH = 30;
+const HOUSE_PTR_BUDGET_MS = 90_000;
+const HOUSE_PTR_LEASE_MS = 3_600_000;
+const HOUSE_PTR_MAX_ATTEMPTS = 3;
 const DAY_MS = 86_400_000;
 const SNAPSHOT_RECENT_DAYS = 30;
 const RERANK_RECENT_DAYS = 60;
 const PENDING_FILING_DAYS = 45;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-const WORKER_VERSION = "2026-10-06-identity-v4";
+const WORKER_VERSION = "2026-10-06-house-ptr-v1";
 const DISCLOSURE_COLUMNS = `
   id, politician_id, representative, ticker, asset_name, transaction_type, owner,
   amount_range, transaction_date, report_date, source_url, chamber, confidence,
   ranking_score, ranking_reasons, why_it_matters, party, state, district,
-  match_confidence, observed_at
+  match_confidence, observed_at, asset_type, description
 `;
 
 export default {
@@ -103,7 +112,10 @@ export default {
   },
 
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(controller.cron === BACKFILL_CRON ? runBackfillSchedule(env) : runScheduled(env));
+    const run = controller.cron === BACKFILL_CRON ? runBackfillSchedule
+      : controller.cron === HOUSE_PTR_CRON ? extractHouseReports
+      : runScheduled;
+    ctx.waitUntil(run(env));
   }
 };
 
@@ -151,11 +163,12 @@ async function snapshot(env) {
     `).all(),
     env.DB.prepare(`
       SELECT ${DISCLOSURE_COLUMNS} FROM disclosures
-      WHERE report_date >= ? ORDER BY report_date DESC LIMIT 2000
+      WHERE report_date >= ? AND suppressed_by IS NULL ORDER BY report_date DESC LIMIT 2000
     `).bind(daysAgo(SNAPSHOT_RECENT_DAYS, now)).all(),
     env.DB.prepare(`
       SELECT ${DISCLOSURE_COLUMNS} FROM disclosures
-      WHERE ranking_score > 0 ORDER BY ranking_score DESC, report_date DESC LIMIT 250
+      WHERE ranking_score > 0 AND suppressed_by IS NULL
+      ORDER BY ranking_score DESC, report_date DESC LIMIT 250
     `).all(),
     env.DB.prepare(`
       SELECT ${postColumns} FROM social_posts
@@ -174,11 +187,11 @@ async function snapshot(env) {
     env.DB.prepare(`
       SELECT politician_id, COUNT(*) AS records, MIN(report_date) AS earliest,
              MAX(report_date) AS latest
-      FROM disclosures WHERE politician_id IS NOT NULL GROUP BY politician_id
+      FROM disclosures WHERE politician_id IS NOT NULL AND suppressed_by IS NULL GROUP BY politician_id
     `).all(),
     env.DB.prepare(`
       SELECT representative, chamber, COUNT(*) AS records, MAX(report_date) AS latest
-      FROM disclosures WHERE politician_id IS NULL
+      FROM disclosures WHERE politician_id IS NULL AND suppressed_by IS NULL
       GROUP BY representative, chamber ORDER BY records DESC LIMIT 100
     `).all(),
     env.DB.prepare(`
@@ -189,6 +202,10 @@ async function snapshot(env) {
           SELECT 1 FROM source_filings extracted
           WHERE extracted.provider = 'apify' AND extracted.doc_id = sf.doc_id || '.pdf'
         )
+        ${housePTRMode(env) === "live" ? `AND NOT EXISTS (
+          SELECT 1 FROM house_ptr_extractions x
+          WHERE x.doc_id = sf.doc_id AND x.status IN ('extracted', 'empty')
+        )` : ""}
       ORDER BY sf.disclosure_date DESC LIMIT 100
     `).bind(daysAgo(PENDING_FILING_DAYS, now)).all()
   ]);
@@ -260,7 +277,7 @@ async function listDisclosures(url, env) {
     if (value && !ISO_DAY.test(value)) return json({ error: "invalid_date", expected: "YYYY-MM-DD" }, 400);
   }
   if (Boolean(cursorDate) !== Boolean(cursorID)) return json({ error: "invalid_cursor" }, 400);
-  const clauses = [];
+  const clauses = ["suppressed_by IS NULL"];
   const values = [];
   if (politicianID) { clauses.push("politician_id = ?"); values.push(politicianID); }
   if (ticker) { clauses.push("ticker = ?"); values.push(ticker); }
@@ -278,7 +295,7 @@ async function listDisclosures(url, env) {
     clauses.push(`(${dateBasis} < ? OR (${dateBasis} = ? AND id < ?))`);
     values.push(cursorDate, cursorDate, cursorID);
   }
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const where = `WHERE ${clauses.join(" AND ")}`;
   const [result, instruments] = await Promise.all([
     env.DB.prepare(`
       SELECT ${DISCLOSURE_COLUMNS}
@@ -618,6 +635,7 @@ async function syncApify(env, input = {}, provider = "apify") {
       env.DB, { ...filing, observedAt: now, updatedAt: now }
     ));
     await executeInChunks(env.DB, [...disclosureStatements, ...filingStatements]);
+    await applyHousePTRMode(env);
     return {
       recordsSeen: filings.length,
       recordsWritten: disclosures.length + filings.length,
@@ -627,6 +645,178 @@ async function syncApify(env, input = {}, provider = "apify") {
       message: filings.length ? null : "No filings returned by Apify"
     };
   }, options);
+}
+
+// Hourly: reads House reports straight from the Clerk's PDFs. In "shadow" mode the rows are stored
+// but held back for comparison with Apify's; in "live" mode they replace Apify's rows report by
+// report. Scanned paper reports have no text layer and are only recorded.
+async function extractHouseReports(env) {
+  const mode = housePTRMode(env);
+  if (mode === "off") return { status: "disabled" };
+  return withHealth(env, "house-ptr", "House reports read from the Clerk's PDFs", async () => {
+    const started = Date.now();
+    const leaseExpiredBefore = new Date(started - HOUSE_PTR_LEASE_MS).toISOString();
+    const candidates = await env.DB.prepare(`
+      SELECT sf.doc_id, sf.filing_url, sf.disclosure_date, sf.representative, sf.raw_json
+      FROM source_filings sf
+      LEFT JOIN house_ptr_extractions x ON x.doc_id = sf.doc_id
+      WHERE sf.provider = 'house' AND (
+        x.doc_id IS NULL
+        OR (x.status IN ('extracted', 'empty', 'needs-review') AND x.parser_version < ?)
+        OR (x.status = 'failed' AND x.attempts < ?)
+        OR (x.status = 'running' AND x.claimed_at < ? AND x.attempts < ?)
+      )
+      ORDER BY sf.disclosure_date DESC, sf.doc_id DESC LIMIT ?
+    `).bind(
+      HOUSE_PTR_PARSER_VERSION, HOUSE_PTR_MAX_ATTEMPTS, leaseExpiredBefore, HOUSE_PTR_MAX_ATTEMPTS,
+      clamp(Number(env.HOUSE_PTR_BATCH) || HOUSE_PTR_BATCH, 1, 100)
+    ).all();
+    // Politician IDs reference the politicians table, so the roster must exist before writes.
+    await syncRoster(env);
+    const context = { resolve: createResolver(roster), moves: await marketMoveLookup(env.DB), mode };
+    const counts = { extracted: 0, empty: 0, "needs-review": 0, failed: 0, paper: 0 };
+    const errors = [];
+    let rowsWritten = 0;
+    let examined = 0;
+    for (const filing of candidates.results) {
+      if (Date.now() - started > HOUSE_PTR_BUDGET_MS) break;
+      examined += 1;
+      if (!isElectronicHouseFiling(filing.doc_id)) {
+        await recordHouseExtraction(env.DB, filing, { status: "paper" });
+        counts.paper += 1;
+        continue;
+      }
+      await claimHouseExtraction(env.DB, filing);
+      try {
+        const parsed = await readHousePTR(await fetchHouseReport(env, filing.filing_url));
+        const warnings = [...parsed.warnings];
+        if (parsed.filingID !== filing.doc_id) warnings.unshift(`report is filing ${parsed.filingID ?? "unknown"}`);
+        // A report that did not read cleanly keeps its Apify rows rather than serving a partial copy.
+        const status = warnings.length ? "needs-review" : parsed.transactions.length ? "extracted" : "empty";
+        const rows = status === "extracted" ? housePTRDisclosures(parsed, {
+          docID: filing.doc_id, disclosureDate: filing.disclosure_date, filingURL: filing.filing_url,
+          representative: filing.representative, rawJSON: filing.raw_json
+        }) : [];
+        await writeHouseReport(env, filing, rows, {
+          status, transactions: rows.length, warnings: warnings.length ? JSON.stringify(warnings.slice(0, 20)) : null
+        }, context);
+        counts[status] += 1;
+        rowsWritten += rows.length;
+      } catch (error) {
+        const message = String(error?.message ?? error).slice(0, 500);
+        await recordHouseExtraction(env.DB, filing, { status: "failed", error: message });
+        counts.failed += 1;
+        errors.push(`${filing.doc_id}: ${message}`);
+      }
+    }
+    await applyHousePTRMode(env, mode);
+    const dates = candidates.results.slice(0, examined).map((filing) => filing.disclosure_date);
+    return {
+      recordsSeen: examined,
+      recordsWritten: rowsWritten,
+      mode,
+      ...counts,
+      coverageStart: minimumDate(dates),
+      coverageEnd: maximumDate(dates),
+      message: errors.length ? `${errors.length} report(s) could not be read: ${errors.slice(0, 3).join("; ")}` : null
+    };
+  });
+}
+
+function housePTRMode(env) {
+  const mode = String(env.HOUSE_PTR_MODE ?? "shadow").trim().toLowerCase();
+  return ["off", "shadow", "live"].includes(mode) ? mode : "shadow";
+}
+
+// Brings every stored row in line with the current mode, so switching modes takes effect on the
+// next run without a migration. Apify writes run this too, so re-fetched rows stay replaced.
+// In live mode Apify's rows for a report are held back exactly when extractor rows exist for it.
+async function applyHousePTRMode(env, mode = housePTRMode(env)) {
+  const live = mode === "live";
+  const replaced = "SELECT source_url FROM disclosures WHERE provider = 'house-ptr' AND source_url IS NOT NULL";
+  await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE disclosures SET suppressed_by = ? WHERE provider = 'house-ptr' AND suppressed_by IS ?
+    `).bind(live ? null : "shadow", live ? "shadow" : null),
+    env.DB.prepare(`
+      UPDATE disclosures SET suppressed_by = NULL WHERE provider = 'apify' AND suppressed_by = 'house-ptr'
+      ${live ? `AND source_url NOT IN (${replaced})` : ""}
+    `),
+    ...(live ? [env.DB.prepare(`
+      UPDATE disclosures SET suppressed_by = 'house-ptr'
+      WHERE provider = 'apify' AND suppressed_by IS NULL AND source_url IN (${replaced})
+    `)] : [])
+  ]);
+}
+
+async function claimHouseExtraction(db, filing) {
+  await db.prepare(`
+    INSERT INTO house_ptr_extractions(doc_id, filing_url, disclosure_date, status, parser_version, attempts, claimed_at)
+    VALUES (?, ?, ?, 'running', ?, 1, ?)
+    ON CONFLICT(doc_id) DO UPDATE SET status='running', claimed_at=excluded.claimed_at,
+      attempts=CASE WHEN house_ptr_extractions.parser_version < excluded.parser_version THEN 1
+        ELSE house_ptr_extractions.attempts + 1 END,
+      parser_version=excluded.parser_version
+  `).bind(
+    filing.doc_id, filing.filing_url, filing.disclosure_date, HOUSE_PTR_PARSER_VERSION, new Date().toISOString()
+  ).run();
+}
+
+function houseExtractionStatement(db, filing, { status, transactions = 0, warnings = null, error = null }) {
+  return db.prepare(`
+    INSERT INTO house_ptr_extractions(doc_id, filing_url, disclosure_date, status, parser_version,
+      transactions, warnings, error, extracted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(doc_id) DO UPDATE SET status=excluded.status, parser_version=excluded.parser_version,
+      transactions=excluded.transactions, warnings=excluded.warnings, error=excluded.error,
+      extracted_at=excluded.extracted_at
+  `).bind(
+    filing.doc_id, filing.filing_url, filing.disclosure_date, status, HOUSE_PTR_PARSER_VERSION,
+    transactions, warnings, error, new Date().toISOString()
+  );
+}
+
+async function recordHouseExtraction(db, filing, result) {
+  await houseExtractionStatement(db, filing, result).run();
+}
+
+// Replaces the report's earlier extractor rows; a report that no longer reads cleanly keeps none,
+// so its Apify rows are served again. Rows keep the first time any provider stored the report, so
+// switching providers does not make old filings look new in the app.
+async function writeHouseReport(env, filing, rows, result, { resolve, moves, mode }) {
+  const now = new Date().toISOString();
+  const firstSeen = rows.length ? await env.DB.prepare(
+    "SELECT MIN(observed_at) AS observed_at FROM disclosures WHERE source_url = ?"
+  ).bind(filing.filing_url).first() : null;
+  const statements = [
+    houseExtractionStatement(env.DB, filing, result),
+    env.DB.prepare("DELETE FROM disclosures WHERE provider = 'house-ptr' AND source_url = ?").bind(filing.filing_url)
+  ];
+  if (rows.length) {
+    const { state, district } = houseStateDistrict(parseJSON(filing.raw_json, {}).stateDistrict);
+    for (const row of rows) {
+      const match = resolve({ name: row.representative, chamber: "house", state, district });
+      const enriched = {
+        ...row,
+        state,
+        district,
+        politicianID: match?.id ?? null,
+        matchConfidence: match?.confidence ?? 0,
+        marketMovePercent: row.ticker ? moves.get(row.ticker) ?? null : null
+      };
+      const ranking = rankDisclosure(enriched);
+      statements.push(disclosureStatement(env.DB, {
+        ...enriched,
+        rankingScore: ranking.score,
+        rankingReasons: ranking.reasons,
+        whyItMatters: whyDisclosureMatters(enriched),
+        observedAt: firstSeen?.observed_at ?? now,
+        updatedAt: now,
+        suppressedBy: mode === "live" ? null : "shadow"
+      }));
+    }
+  }
+  await executeInChunks(env.DB, statements, 100);
 }
 
 async function syncTruth(env) {
@@ -745,7 +935,7 @@ async function withHealth(env, provider, displayName, operation, { recordHealth 
 async function disclosureCoverage(env) {
   const result = await env.DB.prepare(`
     SELECT chamber, MIN(report_date) AS earliest, MAX(report_date) AS latest, COUNT(*) AS records
-    FROM disclosures GROUP BY chamber
+    FROM disclosures WHERE suppressed_by IS NULL GROUP BY chamber
   `).all();
   return result.results.map((row) => ({
     chamber: row.chamber,
@@ -813,8 +1003,8 @@ function disclosureStatement(db, value) {
     INSERT INTO disclosures(id, provider, politician_id, representative, report_date, transaction_date,
       ticker, asset_name, transaction_type, owner, amount_range, chamber, party, source_url,
       raw_json, observed_at, updated_at, confidence, ranking_score, ranking_reasons, why_it_matters,
-      state, district, match_confidence)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      state, district, match_confidence, asset_type, description, suppressed_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET politician_id=COALESCE(excluded.politician_id, disclosures.politician_id),
       asset_name=excluded.asset_name, transaction_type=excluded.transaction_type, owner=excluded.owner,
       amount_range=excluded.amount_range, chamber=excluded.chamber, party=excluded.party,
@@ -823,14 +1013,17 @@ function disclosureStatement(db, value) {
       ranking_reasons=excluded.ranking_reasons, why_it_matters=excluded.why_it_matters,
       state=COALESCE(excluded.state, disclosures.state),
       district=COALESCE(excluded.district, disclosures.district),
-      match_confidence=COALESCE(excluded.match_confidence, disclosures.match_confidence)
+      match_confidence=COALESCE(excluded.match_confidence, disclosures.match_confidence),
+      asset_type=COALESCE(excluded.asset_type, disclosures.asset_type),
+      description=COALESCE(excluded.description, disclosures.description)
   `).bind(
     value.id, value.provider, value.politicianID, value.representative, value.reportDate,
     value.transactionDate, value.ticker, value.assetName, value.transactionType, value.owner,
     value.amountRange, value.chamber, value.party, value.sourceURL, value.rawJSON,
     value.observedAt, value.updatedAt, value.confidence, value.rankingScore,
     JSON.stringify(value.rankingReasons), value.whyItMatters,
-    value.state ?? null, value.district ?? null, value.matchConfidence ?? null
+    value.state ?? null, value.district ?? null, value.matchConfidence ?? null,
+    value.assetType ?? null, value.description ?? null, value.suppressedBy ?? null
   );
 }
 
@@ -852,7 +1045,7 @@ function disclosureIntelligenceItem(record) {
   return {
     id: record.id,
     source: record.chamber === "senate" ? "senateDisclosure" : "houseDisclosure",
-    title: `${record.representative} disclosed a ${record.type} in ${record.symbol}`,
+    title: `${record.representative} disclosed a ${record.type} in ${record.symbol || record.assetName}`,
     body: `${record.assetName} · ${record.amountRange}`,
     author: record.representative,
     politicianID: record.politicianID,
@@ -862,7 +1055,7 @@ function disclosureIntelligenceItem(record) {
     retrievedAt: record.observedAt ?? `${record.filedDate}T12:00:00Z`,
     transactionDate: `${record.transactionDate}T12:00:00Z`,
     sourceURL: record.sourceURL,
-    mentionedSymbols: [record.symbol],
+    mentionedSymbols: record.symbol ? [record.symbol] : [],
     topics: ["Congressional disclosure"],
     impact: impactForScore(record.rankingScore),
     confidence: record.confidence,
@@ -916,6 +1109,8 @@ function mapDisclosure(row) {
     district: row.district,
     matchConfidence: row.match_confidence,
     observedAt: row.observed_at ?? null,
+    assetType: row.asset_type ?? null,
+    description: row.description ?? null,
     confidence: row.confidence,
     rankingScore: row.ranking_score,
     rankingReasons: parseJSON(row.ranking_reasons, []),
@@ -1002,8 +1197,9 @@ function rescoredDisclosure(record, moves, now) {
     confidence: record.confidence,
     ticker: record.symbol,
     assetName: record.assetName,
+    assetType: record.assetType,
     transactionType: record.type
-  }, moves.get(record.symbol) ?? null, now);
+  }, record.symbol ? moves.get(record.symbol) ?? null : null, now);
   return {
     ...record,
     rankingScore: rescored.rankingScore,

@@ -8,6 +8,7 @@ const APIFY_BASE = "https://api.apify.com";
 const TRUTH_SOCIAL_HOST = "truthsocial.com";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_HOUSE_ARCHIVE_BYTES = 10 * 1024 * 1024;
+const MAX_HOUSE_REPORT_BYTES = 8 * 1024 * 1024;
 
 export async function collectOfficialFilings(env, year = new Date().getUTCFullYear()) {
   const filings = [];
@@ -68,6 +69,19 @@ export function parseHouseIndex(text, year) {
       rawJSON: JSON.stringify({ prefix, last, first, suffix, filingType, stateDistrict, yearFiled, filingDate, docID })
     };
   }).filter(Boolean);
+}
+
+export async function fetchHouseReport(env, url) {
+  if (!isTrustedURL(url, ["disclosures-clerk.house.gov"])) throw new Error("Not a House Clerk report URL");
+  const response = await fetchWithTimeout(url, {
+    headers: { ...publisherHeaders(env), Accept: "application/pdf" }
+  });
+  if (!response.ok) throw new Error(`House report returned ${response.status}`);
+  const declaredLength = Number(response.headers.get("content-length") ?? 0);
+  if (declaredLength > MAX_HOUSE_REPORT_BYTES) throw new Error("House report exceeded the size limit");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > MAX_HOUSE_REPORT_BYTES) throw new Error("House report exceeded the size limit");
+  return bytes;
 }
 
 export async function collectApifyDisclosures(env, input = {}) {
