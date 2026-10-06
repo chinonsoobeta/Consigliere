@@ -108,9 +108,10 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
         self.representative = representative
         self.chamber = chamber
         self.symbol = symbol
-        self.assetName = Self.cleanAssetName(assetName)
+        let parsed = Self.parseAssetName(assetName)
+        self.assetName = parsed.name
         self.type = type
-        self.owner = owner
+        self.owner = parsed.owner ?? owner
         self.amountRange = amountRange
         self.transactionDate = transactionDate
         self.filedDate = filedDate
@@ -134,11 +135,18 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     static let lateFilingDays = 45
     var isLate: Bool { disclosureLagDays > Self.lateFilingDays }
 
-    /// House PDF extraction can keep the report's row number ("2000140445   Alphabet Inc. …").
-    static func cleanAssetName(_ name: String) -> String {
-        name.replacing(/^\d{6,}\s+/, with: "")
-            .replacing(/\s{2,}/, with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    /// House PDF extraction can keep the report's row number and owner code in the name
+    /// ("2000134527 SP   U.S. Bancorp …"). That code is the filing's own owner column, so it wins
+    /// over the provider's owner field, which drops it.
+    static func parseAssetName(_ name: String) -> (name: String, owner: DisclosureOwner?) {
+        var owner: DisclosureOwner?
+        var text = name
+        if let match = name.firstMatch(of: /^\d{6,}\s+(?:(SP|JT|DC)\s+)?/) {
+            owner = match.output.1.flatMap { ["SP": .spouse, "JT": .joint, "DC": .dependent][String($0)] }
+            text = String(name[match.range.upperBound...])
+        }
+        let cleaned = text.replacing(/\s{2,}/, with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return (cleaned, owner)
     }
 
     var displaySymbol: String {

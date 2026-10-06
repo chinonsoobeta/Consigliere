@@ -68,11 +68,25 @@ final class TradeModelTests: XCTestCase {
         XCTAssertEqual(stats.topSymbols, ["AAPL", "MSFT"])
     }
 
-    func testAssetNamesDropHouseRowNumbers() {
-        XCTAssertEqual(
-            DisclosureTrade.cleanAssetName("2000140445                 Alphabet Inc. - Class A Common Stock (GOOGL)"),
-            "Alphabet Inc. - Class A Common Stock (GOOGL)"
+    func testAssetNamesDropHouseRowNumbersAndKeepOwnerCodes() {
+        let plain = DisclosureTrade.parseAssetName("2000140445                 Alphabet Inc. - Class A Common Stock (GOOGL)")
+        XCTAssertEqual(plain.name, "Alphabet Inc. - Class A Common Stock (GOOGL)")
+        XCTAssertNil(plain.owner)
+
+        let spouse = DisclosureTrade.parseAssetName("2000134527 SP              U.S. Bancorp Common Stock")
+        XCTAssertEqual(spouse.name, "U.S. Bancorp Common Stock")
+        XCTAssertEqual(spouse.owner, .spouse)
+
+        XCTAssertEqual(DisclosureTrade.parseAssetName("3M Company").name, "3M Company")
+        XCTAssertEqual(DisclosureTrade.parseAssetName("SPDR S&P 500 ETF").name, "SPDR S&P 500 ETF")
+    }
+
+    func testOwnerCodeInAssetNameOverridesProviderOwner() {
+        let trade = DisclosureTrade(
+            id: UUID(), politicianID: nil, symbol: "USB", assetName: "2000134527 SP   U.S. Bancorp Common Stock",
+            type: .sale, owner: .member, amountRange: "$15,001 - $50,000", transactionDate: day("2025-03-10"),
+            filedDate: day("2026-09-12"), sourceURL: URL(string: "https://example.com/a.pdf")!, eventStudy: []
         )
-        XCTAssertEqual(DisclosureTrade.cleanAssetName("3M Company"), "3M Company")
+        XCTAssertEqual(trade.owner, .spouse)
     }
 }
