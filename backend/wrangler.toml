@@ -23,4 +23,4 @@ MARKET_SYMBOLS = "SPY,QQQ,DIA,IXIC"
 PUBLISHER_USER_AGENT = "Consigliere/1.0 public-interest political-market research"
 # "shadow" stores House PDF rows without serving them; "live" serves them in place of Apify's
 # House rows for the same reports; "off" stops reading PDFs.
-HOUSE_PTR_MODE = "shadow"
+HOUSE_PTR_MODE = "live"
