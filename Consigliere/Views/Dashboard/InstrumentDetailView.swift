@@ -24,7 +24,7 @@ struct InstrumentDetailView: View {
                 }
                 HStack(alignment: .firstTextBaseline) { Text(instrument.formattedPrice).font(.title.bold()); ChangeLabel(value: instrument.changePercent) }
                 if instrument.history.isEmpty {
-                    Label("Intraday history is not available from the configured quote feed.", systemImage: "chart.line.downtrend.xyaxis")
+                    Label("instrument.noHistory", systemImage: "chart.line.downtrend.xyaxis")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)

@@ -7,6 +7,7 @@ struct PoliticianProfileView: View {
 
     private var trades: [DisclosureTrade] { appState.disclosures(for: politician) }
     private var coverage: DisclosureCoverageSummary? { appState.coverage(for: politician) }
+    private var pendingFilings: [PendingFiling] { appState.pendingFilings(for: politician) }
 
     var body: some View {
         ScrollView {
@@ -15,6 +16,7 @@ struct PoliticianProfileView: View {
                 DisclosureMethodologyBanner()
                 if appState.disclosureLoadError != nil { disclosureErrorView }
                 coverageSection
+                if !pendingFilings.isEmpty { pendingSection }
                 tradesSection
                 DisclaimerBanner()
             }.padding()
@@ -32,7 +34,7 @@ struct PoliticianProfileView: View {
             Label("disclosures.loadError", systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline).foregroundStyle(.orange)
             Spacer()
-            Button("common.retry") { Task { await appState.load(force: true) } }
+            Button("common.retry") { Task { await appState.loadDisclosures(for: politician) } }
                 .buttonStyle(.bordered)
         }
         .consigliereCard()
@@ -46,34 +48,45 @@ struct PoliticianProfileView: View {
             .frame(width: 82, height: 82).clipShape(Circle())
             VStack(alignment: .leading, spacing: 6) {
                 Text(politician.name).font(.title.bold())
-                Text("\(politician.party) · \(politician.jurisdiction)").foregroundStyle(.secondary)
+                (Text("\(politician.party) · ") + politician.jurisdiction).foregroundStyle(.secondary)
                 Label(politician.chamber.label, systemImage: politician.chamber.icon).font(.subheadline.weight(.semibold)).foregroundStyle(ConsigliereTheme.gold)
-                Text("politician.servingSince \(politician.serviceStart)").font(.caption).foregroundStyle(.secondary)
+                Text("politician.servingSince \(String(politician.serviceStart))").font(.caption).foregroundStyle(.secondary)
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var coverageSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Available disclosure coverage").font(.title3.bold())
-            Text("Coverage reflects disclosures matched to this person, rather than chamber-wide totals.")
+            Text("politician.coverage").font(.title3.bold())
+            Text("politician.coverage.matched")
                 .font(.caption).foregroundStyle(.secondary)
             if let coverage {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("\(coverage.records) records").font(.headline.monospacedDigit())
-                        Text([coverage.earliest, coverage.latest].compactMap { $0 }.joined(separator: " – "))
-                            .font(.caption).foregroundStyle(.secondary)
+                        Text("politician.records \(coverage.records)").font(.headline.monospacedDigit())
+                        if let earliest = coverage.earliest.flatMap(DisclosureDates.day),
+                           let latest = coverage.latest.flatMap(DisclosureDates.day) {
+                            Text("\(earliest, format: DisclosureDates.style()) – \(latest, format: DisclosureDates.style())")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
-                    Label("Available records", systemImage: "calendar.badge.checkmark")
+                    Label("politician.availableRecords", systemImage: "calendar.badge.checkmark")
                         .font(.caption).foregroundStyle(ConsigliereTheme.gold)
                 }
             } else {
-                Text("No verified coverage metadata is available for this chamber.")
+                Text("politician.noCoverage")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
         }.consigliereCard()
+    }
+
+    private var pendingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("pending.title \(pendingFilings.count)").font(.title3.bold())
+            Text("pending.subtitle").font(.caption).foregroundStyle(.secondary)
+            ForEach(pendingFilings) { PendingFilingRow(filing: $0) }
+        }
     }
 
     private var tradesSection: some View {
@@ -81,7 +94,7 @@ struct PoliticianProfileView: View {
             Text("politician.disclosures").font(.title3.bold())
             if trades.isEmpty {
                 if appState.loadingPoliticianIDs.contains(politician.id) {
-                    ProgressView("Loading normalized disclosures…")
+                    ProgressView("politician.loading")
                         .frame(maxWidth: .infinity)
                 } else {
                     ContentUnavailableView("politician.noTrades", systemImage: "doc.text.magnifyingglass", description: Text("politician.noTrades.body"))
@@ -103,7 +116,7 @@ struct DisclosureTradeRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack { Text(trade.symbol).font(.headline.monospaced()); Text(trade.type.label).font(.caption.weight(.semibold)).foregroundStyle(trade.type.color) }
                 Text(trade.assetName).font(.subheadline).lineLimit(1)
-                Text("\(trade.transactionDate.formatted(date: .abbreviated, time: .omitted)) · \(trade.amountRange)").font(.caption).foregroundStyle(.secondary)
+                Text("\(trade.transactionDate, format: DisclosureDates.style()) · \(trade.amountRange)").font(.caption).foregroundStyle(.secondary)
             }
             Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }.consigliereCard()

@@ -17,8 +17,8 @@ struct Politician: Identifiable, Hashable, Codable {
     let imageURL: URL?
     let serviceStart: Int
 
-    var jurisdiction: String {
-        district.map { "\(state) · District \($0)" } ?? state
+    var jurisdiction: Text {
+        district.map { Text("politician.district \(state) \($0)") } ?? Text(state)
     }
 
     var partyAbbreviation: String {
@@ -32,7 +32,7 @@ enum DisclosureTransactionType: String, Codable, CaseIterable {
     case purchase, sale, exchange
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "trade.\(rawValue)") }
     var color: Color { self == .purchase ? ConsigliereTheme.positive : (self == .sale ? ConsigliereTheme.negative : .blue) }
-    var icon: String { self == .purchase ? "arrow.down.to.line" : (self == .sale ? "arrow.up.from.line" : "arrow.left.arrow.right") }
+    var icon: String { self == .purchase ? "arrow.down.to.line" : (self == .sale ? "arrow.up.to.line" : "arrow.left.arrow.right") }
 }
 
 enum DisclosureOwner: String, Codable {
@@ -51,7 +51,9 @@ struct EventStudyPoint: Identifiable, Hashable, Codable {
 
 struct DisclosureTrade: Identifiable, Hashable, Codable {
     let id: UUID
-    let politicianID: String
+    let politicianID: String?
+    let representative: String
+    let chamber: Chamber?
     let symbol: String
     let assetName: String
     let type: DisclosureTransactionType
@@ -68,7 +70,7 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     let whyItMatters: String
 
     init(
-        id: UUID, politicianID: String, symbol: String, assetName: String,
+        id: UUID, politicianID: String?, representative: String = "", chamber: Chamber? = nil, symbol: String, assetName: String,
         type: DisclosureTransactionType, owner: DisclosureOwner, amountRange: String,
         transactionDate: Date, filedDate: Date, sourceURL: URL,
         eventStudy: [EventStudyPoint], freshness: DataFreshness = .delayed,
@@ -77,6 +79,8 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     ) {
         self.id = id
         self.politicianID = politicianID
+        self.representative = representative
+        self.chamber = chamber
         self.symbol = symbol
         self.assetName = assetName
         self.type = type
@@ -94,8 +98,36 @@ struct DisclosureTrade: Identifiable, Hashable, Codable {
     }
 
     var disclosureLagDays: Int {
-        Calendar.current.dateComponents([.day], from: transactionDate, to: filedDate).day ?? 0
+        DisclosureDates.calendar.dateComponents([.day], from: transactionDate, to: filedDate).day ?? 0
     }
 
     func returnAt(day: Int) -> EventStudyPoint? { eventStudy.first { $0.tradingDay == day } }
+}
+
+/// Per-politician totals across all stored disclosures, not just the snapshot window.
+struct PoliticianDisclosureSummary: Hashable, Codable {
+    let politicianID: String
+    let records: Int
+    let earliest: String?
+    let latest: String?
+}
+
+/// A filer name the roster could not attribute (often a former member).
+struct UnmatchedFiler: Identifiable, Hashable, Codable {
+    var id: String { "\(chamber ?? "")|\(representative)" }
+    let representative: String
+    let chamber: String?
+    let records: Int
+    let latest: String?
+}
+
+/// An official filing whose transactions have not been extracted yet.
+struct PendingFiling: Identifiable, Hashable, Codable {
+    let id: String
+    let representative: String
+    let politicianID: String?
+    let chamber: String?
+    let filedDate: String
+    let sourceURL: URL
+    let documentID: String?
 }

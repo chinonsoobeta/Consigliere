@@ -118,12 +118,25 @@ struct MarketEvent: Identifiable, Hashable, Codable {
     let freshness: DataFreshness
     let rankingScore: Double
     let rankingReasons: [String]
+    var politicianID: String? = nil
+    var timePrecision: TimePrecision? = nil
+
+    /// Disclosures carry calendar dates only; their stored time of day is a placeholder.
+    var isDateOnly: Bool {
+        timePrecision == .date || (timePrecision == nil && source != .truthSocial)
+    }
 
     var retrievalLatency: TimeInterval { retrievedAt.timeIntervalSince(publishedAt) }
 }
 
+enum TimePrecision: String, Codable {
+    case date, datetime
+}
+
 enum SourceAvailability: String, Codable {
     case available, degraded, failed, unconfigured
+
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "sourceStatus.\(rawValue)") }
 
     var color: Color {
         switch self {
@@ -164,6 +177,9 @@ struct IntelligenceSnapshot: Hashable {
     let disclosures: [DisclosureTrade]
     let sourceHealth: [SourceHealth]
     let coverage: [DisclosureCoverageSummary]
+    var politicianSummaries: [PoliticianDisclosureSummary] = []
+    var unmatchedFilers: [UnmatchedFiler] = []
+    var pendingFilings: [PendingFiling] = []
 }
 
 struct PortfolioHolding: Identifiable, Hashable, Codable {

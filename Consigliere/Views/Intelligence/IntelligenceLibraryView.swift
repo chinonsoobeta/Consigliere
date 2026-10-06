@@ -5,25 +5,15 @@ struct IntelligenceLibraryView: View {
     let scope: IntelligenceLibraryScope
 
     private var events: [MarketEvent] {
-        appState.events.filter { event in
-            switch scope {
-            case .disclosures:
-                event.source == .houseDisclosure || event.source == .senateDisclosure
-            case .politics:
-                event.source == .truthSocial
-            case .markets:
-                false
-            }
-        }
+        appState.events.filter { $0.source == .houseDisclosure || $0.source == .senateDisclosure }
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if scope == .markets {
-                    marketList
-                } else {
-                    eventList
+                switch scope {
+                case .disclosures: eventList
+                case .markets: marketList
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
@@ -31,24 +21,25 @@ struct IntelligenceLibraryView: View {
             .refreshable { await appState.load(force: true) }
             .navigationDestination(for: MarketEvent.self) { EventDetailView(event: $0) }
             .navigationDestination(for: MarketInstrument.self) { InstrumentDetailView(instrument: $0) }
+            .navigationDestination(for: Politician.self) { PoliticianProfileView(politician: $0) }
         }
     }
 
     private var eventList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                methodology
-                if let error = appState.disclosureLoadError {
-                    SourceUnavailableView(
-                        title: "\(scope.title) unavailable",
-                        message: error,
-                        retry: { Task { await appState.load(force: true) } }
-                    )
-                } else if events.isEmpty {
-                    SourceUnavailableView(
-                        title: "No verified \(scope.title.lowercased()) items",
-                        message: "No source-backed records are currently available. Consigliere does not substitute fixtures.",
-                        retry: { Task { await appState.load(force: true) } }
+                Text("library.disclosures.methodology")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .consigliereCard()
+                if !appState.pendingFilings.isEmpty {
+                    pendingSection
+                }
+                if events.isEmpty {
+                    SourceAwareEmptyView(
+                        providers: ["apify"],
+                        emptyTitle: "library.disclosures.empty",
+                        emptyMessage: "library.disclosures.empty.body"
                     )
                 } else {
                     ForEach(events) { event in
@@ -60,20 +51,39 @@ struct IntelligenceLibraryView: View {
         }
     }
 
+    private var pendingSection: some View {
+        DisclosureGroup {
+            VStack(spacing: 10) {
+                ForEach(appState.pendingFilings) { PendingFilingRow(filing: $0) }
+            }
+            .padding(.top, 8)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("pending.title \(appState.pendingFilings.count)").font(.headline)
+                Text("pending.subtitle").font(.caption).foregroundStyle(.secondary)
+            }
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .tint(.primary)
+        .consigliereCard()
+    }
+
     private var marketList: some View {
         List {
             Section {
-                Text("Licensed quotes include source timestamps and freshness. Empty results indicate that market display rights or the provider are not configured.")
+                Text("library.markets.methodology")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             if appState.instruments.isEmpty {
                 Section {
-                    SourceUnavailableView(
-                        title: "Market data unavailable",
-                        message: appState.disclosureLoadError ?? "No licensed market records are currently available.",
-                        retry: { Task { await appState.load(force: true) } }
+                    SourceAwareEmptyView(
+                        providers: ["twelve-data"],
+                        emptyTitle: "library.markets.empty",
+                        emptyMessage: "library.markets.empty.body"
                     )
                     .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 }
             } else {
                 Section {
@@ -98,25 +108,15 @@ struct IntelligenceLibraryView: View {
         }
         .listStyle(.insetGrouped)
     }
-
-    private var methodology: some View {
-        Text(scope == .disclosures
-            ? "Newly public filings are ordered by research priority, not transaction date. Trade and filing dates remain distinct."
-            : "Political statements are ranked by recency, policy relevance, current licensed market context, and source confidence. Market context is not an event-window reaction.")
-            .font(.footnote).foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .consigliereCard()
-    }
 }
 
 enum IntelligenceLibraryScope: String {
-    case disclosures, politics, markets
+    case disclosures, markets
 
-    var title: String { rawValue.capitalized }
+    var title: LocalizedStringKey { LocalizedStringKey(stringLiteral: "tab.\(rawValue)") }
     var icon: String {
         switch self {
         case .disclosures: "doc.text.magnifyingglass"
-        case .politics: "building.columns"
         case .markets: "chart.line.uptrend.xyaxis"
         }
     }

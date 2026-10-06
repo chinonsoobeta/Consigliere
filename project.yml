@@ -22,6 +22,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.chinonsoobeta.Consigliere
         PRODUCT_NAME: Consigliere
+        MARKETING_VERSION: "0.3.0"
+        CURRENT_PROJECT_VERSION: "1"
         CONSIGLIERE_API_BASE_URL: "https://consigliere-ingestion.chinonsoobeta.workers.dev"
         INFOPLIST_KEY_CFBundleDisplayName: Consigliere
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance

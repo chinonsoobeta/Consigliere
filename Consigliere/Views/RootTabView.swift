@@ -4,15 +4,13 @@ struct RootTabView: View {
     var body: some View {
         TabView {
             DashboardView()
-                .tabItem { Label("Brief", systemImage: "newspaper.fill") }
+                .tabItem { Label("tab.brief", systemImage: "newspaper.fill") }
             IntelligenceLibraryView(scope: .disclosures)
-                .tabItem { Label("Disclosures", systemImage: IntelligenceLibraryScope.disclosures.icon) }
-            IntelligenceLibraryView(scope: .politics)
-                .tabItem { Label("Politics", systemImage: IntelligenceLibraryScope.politics.icon) }
-            IntelligenceLibraryView(scope: .markets)
-                .tabItem { Label("Markets", systemImage: IntelligenceLibraryScope.markets.icon) }
+                .tabItem { Label("tab.disclosures", systemImage: IntelligenceLibraryScope.disclosures.icon) }
             InstrumentSearchView()
-                .tabItem { Label("Research", systemImage: "magnifyingglass") }
+                .tabItem { Label("tab.research", systemImage: "magnifyingglass") }
+            IntelligenceLibraryView(scope: .markets)
+                .tabItem { Label("tab.markets", systemImage: IntelligenceLibraryScope.markets.icon) }
             SettingsView()
                 .tabItem { Label("tab.settings", systemImage: "gearshape.fill") }
         }

@@ -27,33 +27,55 @@ struct SettingsView: View {
                             HStack {
                                 Label(source.displayName, systemImage: "server.rack")
                                 Spacer()
-                                Text(source.status.rawValue.capitalized)
+                                Text(source.status.label)
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(source.status.color)
                             }
                             if let lastSuccess = source.lastSuccessAt {
-                                Text("Last successful sync \(lastSuccess.formatted(date: .abbreviated, time: .shortened))")
+                                Text("settings.lastSync \(lastSuccess, format: Date.FormatStyle(date: .abbreviated, time: .shortened))")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
-                            if let message = source.message, !message.isEmpty {
+                            if source.status != .unconfigured, let message = source.message, !message.isEmpty {
                                 Text(message).font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                     }
                     if appState.sourceHealth.isEmpty {
-                        Label("Live sources unavailable", systemImage: "exclamationmark.triangle")
+                        Label("settings.sourcesUnavailable", systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
                     }
                     NavigationLink("settings.sources") { MethodologyView() }
                 }
                 Section("settings.legal") {
                     Text("disclaimer.full").font(.footnote).foregroundStyle(.secondary)
-                    Link("settings.privacy", destination: URL(string: "https://github.com/chinonsoobeta/Consigliere")!)
+                    NavigationLink("settings.privacy") { PrivacyView() }
                 }
-                Section { Text("Version 0.2.0 · Public-interest research").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity) }
+                Section {
+                    Text("settings.version \(Self.appVersion)")
+                        .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                }
             }
             .navigationTitle("settings.title")
         }
+    }
+
+    private static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = info?["CFBundleVersion"] as? String
+        return build.map { "\(version) (\($0))" } ?? version
+    }
+}
+
+struct PrivacyView: View {
+    var body: some View {
+        List {
+            Section("privacy.collected") { Text("privacy.collected.body") }
+            Section("privacy.device") { Text("privacy.device.body") }
+            Section("privacy.network") { Text("privacy.network.body") }
+        }
+        .navigationTitle("settings.privacy")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

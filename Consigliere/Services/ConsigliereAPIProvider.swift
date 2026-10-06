@@ -76,17 +76,16 @@ struct ConsigliereAPIClient: IntelligenceProvider {
             URLQueryItem(name: "date_basis", value: query.dateBasis.rawValue),
             URLQueryItem(name: "limit", value: String(min(max(query.limit, 1), 500)))
         ]
+        if let politicianID = query.politicianID {
+            items.append(URLQueryItem(name: "politician_id", value: politicianID))
+        }
         if let representative = query.representative {
             items.append(URLQueryItem(name: "representative", value: representative))
         }
         if let chamber = query.chamber {
             items.append(URLQueryItem(name: "chamber", value: chamber.rawValue))
         }
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
+        let formatter = DisclosureDates.dayFormatter
         if let from = query.from {
             items.append(URLQueryItem(name: "from", value: formatter.string(from: from)))
         }
@@ -129,10 +128,7 @@ struct ConsigliereAPIClient: IntelligenceProvider {
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let value = try container.decode(String.self)
-            let fractional = ISO8601DateFormatter()
-            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = fractional.date(from: value) { return date }
-            if let date = ISO8601DateFormatter().date(from: value) { return date }
+            if let date = DisclosureDates.timestamp(value) { return date }
             throw DecodingError.dataCorruptedError(
                 in: container,
                 debugDescription: "Invalid ISO-8601 date: \(value)"
@@ -148,35 +144,42 @@ struct ConsigliereAPIClient: IntelligenceProvider {
             politicians: politicians,
             disclosures: decodeDisclosures(data.disclosures, politicians: politicians),
             sourceHealth: data.sourceHealth,
-            coverage: data.coverage
+            coverage: data.coverage,
+            politicianSummaries: data.politicianSummaries ?? [],
+            unmatchedFilers: data.unmatchedFilers ?? [],
+            pendingFilings: data.pendingFilings ?? []
         )
     }
 
-    private static func decodeDisclosures(
+    // Records the roster cannot attribute are kept with a nil politicianID so they still
+    // appear in feeds and unmatched-filer lists instead of silently disappearing.
+    fileprivate static func decodeDisclosures(
         _ records: [DisclosureRecord],
         politicians: [Politician]
     ) -> [DisclosureTrade] {
         let resolver = PoliticianIdentityResolver(politicians: politicians)
         return records.compactMap { record -> DisclosureTrade? in
+            let chamber = record.chamber.flatMap(Chamber.init(rawValue:))
             guard
                 let id = UUID(uuidString: record.id),
-                let politicianID = resolver.resolve(
-                    providerID: record.politicianID,
-                    name: record.representative,
-                    chamber: record.chamber.flatMap(Chamber.init(rawValue:)),
-                    party: record.party,
-                    state: record.state,
-                    district: record.district
-                ),
-                let transactionDate = parseDate(record.transactionDate),
-                let filedDate = parseDate(record.filedDate),
+                let transactionDate = DisclosureDates.day(record.transactionDate),
+                let filedDate = DisclosureDates.day(record.filedDate),
                 let type = DisclosureTransactionType(rawValue: record.type),
                 let owner = DisclosureOwner(rawValue: record.owner),
                 let sourceURL = URL(string: record.sourceURL)
             else { return nil }
             return DisclosureTrade(
                 id: id,
-                politicianID: politicianID,
+                politicianID: resolver.resolve(
+                    providerID: record.politicianID,
+                    name: record.representative,
+                    chamber: chamber,
+                    party: record.party,
+                    state: record.state,
+                    district: record.district
+                ),
+                representative: record.representative,
+                chamber: chamber,
                 symbol: record.symbol,
                 assetName: record.assetName,
                 type: type,
@@ -194,9 +197,49 @@ struct ConsigliereAPIClient: IntelligenceProvider {
             )
         }
     }
+}
 
-    private static func parseDate(_ value: String) -> Date? {
-        ISO8601DateFormatter().date(from: value + (value.contains("T") ? "" : "T12:00:00Z"))
+/// Disclosure dates are calendar days with no time of day. They are anchored at noon UTC and
+/// must be displayed in UTC so a filing never shifts to the previous or next day.
+enum DisclosureDates {
+    static let utc = TimeZone(secondsFromGMT: 0)!
+    static let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = utc
+        return calendar
+    }()
+
+    static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = utc
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    nonisolated(unsafe) private static let fractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    nonisolated(unsafe) private static let whole = ISO8601DateFormatter()
+
+    static func timestamp(_ value: String) -> Date? {
+        fractional.date(from: value) ?? whole.date(from: value)
+    }
+
+    static func day(_ value: String) -> Date? {
+        if value.contains("T") { return timestamp(value) }
+        return timestamp(value + "T12:00:00Z")
+    }
+
+    /// Use with `Text(date, format:)` or string interpolation in a `Text` so the in-app
+    /// language (the environment locale) is respected.
+    static func style(_ style: Date.FormatStyle.DateStyle = .abbreviated) -> Date.FormatStyle {
+        var format = Date.FormatStyle(date: style, time: .omitted)
+        format.timeZone = utc
+        return format
     }
 }
 
@@ -219,6 +262,9 @@ private struct SnapshotData: Decodable {
     let disclosures: [DisclosureRecord]
     let sourceHealth: [SourceHealth]
     let coverage: [DisclosureCoverageSummary]
+    let politicianSummaries: [PoliticianDisclosureSummary]?
+    let unmatchedFilers: [UnmatchedFiler]?
+    let pendingFilings: [PendingFiling]?
 }
 
 private struct DisclosureRecord: Decodable {
@@ -244,19 +290,35 @@ private struct DisclosureRecord: Decodable {
     let matchConfidence: Double?
 }
 
+/// Fallback for records the backend has not yet matched. Mirrors backend/src/identity.js:
+/// chamber and state are hard constraints; district and party only break ties.
 struct PoliticianIdentityResolver {
+    private struct Candidate {
+        let politician: Politician
+        let state: String?
+        let normalized: String
+        let given: String
+        let surname: String
+    }
+
     private static let fuzzyMatchThreshold = 0.75
-    private let politicians: [Politician]
+    private let candidates: [Candidate]
     private let IDs: Set<String>
-    private let exactMatches: [String: Politician]
 
     init(politicians: [Politician]) {
-        self.politicians = politicians
         IDs = Set(politicians.map(\.id))
-        exactMatches = Dictionary(
-            politicians.map { (Self.normalize($0.name), $0) },
-            uniquingKeysWith: { current, _ in current }
-        )
+        candidates = politicians.compactMap { politician in
+            let normalized = Self.normalize(politician.name)
+            let parts = normalized.split(separator: " ").map(String.init)
+            guard let given = parts.first, let surname = parts.last else { return nil }
+            return Candidate(
+                politician: politician,
+                state: StateCodes.code(for: politician.state),
+                normalized: normalized,
+                given: given,
+                surname: surname
+            )
+        }
     }
 
     func resolve(
@@ -269,100 +331,50 @@ struct PoliticianIdentityResolver {
     ) -> String? {
         if let providerID, IDs.contains(providerID) { return providerID }
         let normalized = Self.normalize(name)
-        if let exact = exactMatches[normalized],
-           Self.contextMatches(exact, chamber: chamber, party: party, state: state, district: district) {
-            return exact.id
+        let parts = normalized.split(separator: " ").map(String.init)
+        guard let given = parts.first, let surname = parts.last else { return nil }
+        let code = state.flatMap(StateCodes.code(for:))
+        let pool = candidates.filter {
+            (chamber == nil || $0.politician.chamber == chamber) && (code == nil || $0.state == code)
         }
-        let components = Self.identityComponents(normalized)
-        guard let givenName = components.first, let surname = components.last else { return nil }
-        let matches = politicians.filter {
-            let candidate = Self.identityComponents(Self.normalize($0.name))
-            guard let candidateGiven = candidate.first, candidate.last == surname else { return false }
-            return Self.canonicalGivenName(String(candidateGiven)) == Self.canonicalGivenName(String(givenName))
+        func unique(_ matches: [Candidate]) -> String? {
+            let narrowed = Self.tieBreak(matches, district: district, party: party)
+            return narrowed.count == 1 ? narrowed[0].politician.id : nil
         }
-        let contextualMatches = matches.filter {
-            Self.contextMatches($0, chamber: chamber, party: party, state: state, district: district)
-        }
-        if contextualMatches.count == 1 { return contextualMatches[0].id }
-        guard let firstInitial = givenName.first else { return nil }
-        let initialMatches = politicians.filter {
-            let candidate = Self.identityComponents(Self.normalize($0.name))
-            return candidate.first?.first == firstInitial && candidate.last == surname
-        }
-        let contextualInitialMatches = initialMatches.filter {
-            Self.contextMatches($0, chamber: chamber, party: party, state: state, district: district)
-        }
-        if contextualInitialMatches.count == 1 { return contextualInitialMatches[0].id }
-        return fuzzyMatch(
-            normalizedName: normalized,
-            chamber: chamber,
-            party: party,
-            state: state,
-            district: district
-        )?.id
-    }
 
-    private func fuzzyMatch(
-        normalizedName: String,
-        chamber: Chamber?,
-        party: String?,
-        state: String?,
-        district: Int?
-    ) -> Politician? {
-        let ranked = politicians.compactMap { politician -> (Politician, Double)? in
-            guard Self.contextMatches(
-                politician,
-                chamber: chamber,
-                party: party,
-                state: state,
-                district: district
-            ) else { return nil }
-            let score = Self.similarity(normalizedName, Self.normalize(politician.name))
-            return score >= Self.fuzzyMatchThreshold ? (politician, score) : nil
+        let exact = pool.filter { $0.normalized == normalized }
+        if !exact.isEmpty { return unique(exact) }
+        let sameSurname = pool.filter { $0.surname == surname }
+        let byGiven = sameSurname.filter { Self.canonicalGivenName($0.given) == Self.canonicalGivenName(given) }
+        if !byGiven.isEmpty { return unique(byGiven) }
+        let byInitial = sameSurname.filter { $0.given.first == given.first }
+        if !byInitial.isEmpty { return unique(byInitial) }
+        // A surname unique within a known state delegation is a strong identity signal.
+        if code != nil, !sameSurname.isEmpty { return unique(sameSurname) }
+
+        let ranked = pool.compactMap { candidate -> (Candidate, Double)? in
+            let score = Self.similarity(normalized, candidate.normalized)
+            return score >= Self.fuzzyMatchThreshold ? (candidate, score) : nil
         }.sorted {
-            if $0.1 == $1.1 { return $0.0.id < $1.0.id }
+            if $0.1 == $1.1 { return $0.0.politician.id < $1.0.politician.id }
             return $0.1 > $1.1
         }
         guard let best = ranked.first else { return nil }
         guard ranked.dropFirst().first.map({ best.1 - $0.1 >= 0.05 }) ?? true else { return nil }
-        return best.0
+        return best.0.politician.id
     }
 
-    private static func contextMatches(
-        _ politician: Politician,
-        chamber: Chamber?,
-        party: String?,
-        state: String?,
-        district: Int?
-    ) -> Bool {
-        if let chamber, politician.chamber != chamber { return false }
-        if let state, !state.isEmpty {
-            let normalizedState = state.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            let candidateState = politician.state.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            if normalizedState != candidateState
-                && normalizedState != Self.stateAbbreviation(candidateState) {
-                return false
-            }
+    private static func tieBreak(_ matches: [Candidate], district: Int?, party: String?) -> [Candidate] {
+        guard matches.count > 1 else { return matches }
+        if let district {
+            let byDistrict = matches.filter { $0.politician.district == district }
+            if byDistrict.count == 1 { return byDistrict }
         }
-        if let district, let candidateDistrict = politician.district, district != candidateDistrict {
-            return false
+        if let initial = party?.prefix(1).uppercased(), !initial.isEmpty {
+            let byParty = matches.filter { $0.politician.party.prefix(1).uppercased() == initial }
+            if byParty.count == 1 { return byParty }
         }
-        if let party, !party.isEmpty {
-            let sourceParty = party.lowercased().prefix(1)
-            if sourceParty != politician.party.lowercased().prefix(1) { return false }
-        }
-        return true
-    }
-
-    private static func stateAbbreviation(_ state: String) -> String {
-        let names = [
-            "california": "ca", "new york": "ny", "texas": "tx", "florida": "fl",
-            "georgia": "ga", "alabama": "al", "arkansas": "ar", "tennessee": "tn",
-            "new jersey": "nj", "north carolina": "nc", "south carolina": "sc",
-            "pennsylvania": "pa", "illinois": "il", "ohio": "oh", "michigan": "mi",
-            "virginia": "va", "washington": "wa", "massachusetts": "ma"
-        ]
-        return names[state.lowercased()] ?? state.lowercased()
+        return matches
     }
 
     private static func similarity(_ lhs: String, _ rhs: String) -> Double {
@@ -394,34 +406,66 @@ struct PoliticianIdentityResolver {
         return previous[right.count]
     }
 
-    private static func identityComponents(_ normalizedName: String) -> [Substring] {
-        let ignored: Set<Substring> = ["dr", "jr", "sr", "ii", "iii", "iv"]
-        return normalizedName.split(separator: " ").filter { !ignored.contains($0) }
-    }
+    private static let givenNameAliases = [
+        "bill": "william", "will": "william", "bob": "robert", "rob": "robert",
+        "chris": "christopher", "chuck": "charles", "dan": "daniel", "don": "donald",
+        "ed": "edward", "jack": "john", "jim": "james", "jimmy": "james", "joe": "joseph",
+        "ken": "kenneth", "matt": "matthew", "mike": "michael", "rick": "richard",
+        "rich": "richard", "dick": "richard", "ron": "ronald", "tom": "thomas", "tim": "timothy",
+        "val": "valerie", "gil": "gilbert", "greg": "gregory", "steve": "steven",
+        "stephen": "steven", "dave": "david", "andy": "andrew", "tony": "anthony",
+        "pat": "patrick", "pete": "peter", "sam": "samuel", "ted": "edward", "nick": "nicholas",
+        "vince": "vincent", "liz": "elizabeth", "beth": "elizabeth", "kathy": "katherine",
+        "cathy": "catherine", "debbie": "deborah", "sue": "susan", "abe": "abraham",
+        "fred": "frederick", "jerry": "gerald", "larry": "lawrence", "mitch": "mitchell",
+        "josh": "joshua", "zach": "zachary", "ben": "benjamin", "buddy": "earl"
+    ]
 
     private static func canonicalGivenName(_ value: String) -> String {
-        let aliases = [
-            "bill": "william", "bob": "robert", "chris": "christopher", "chuck": "charles",
-            "dan": "daniel", "don": "donald", "ed": "edward", "jack": "john",
-            "jim": "james", "joe": "joseph", "ken": "kenneth", "matt": "matthew",
-            "mike": "michael", "rick": "richard", "ron": "ronald", "tom": "thomas",
-            "val": "valerie", "gilbert": "gilbert", "gil": "gilbert"
-        ]
-        return aliases[value] ?? value
+        givenNameAliases[value] ?? value
     }
 
-    private static func normalize(_ value: String) -> String {
+    private static let ignoredTokens: Set<String> = [
+        "hon", "honorable", "sen", "senator", "rep", "representative", "dr", "mr", "mrs", "ms",
+        "jr", "sr", "ii", "iii", "iv"
+    ]
+
+    static func normalize(_ value: String) -> String {
         var candidate = value
-        if let comma = candidate.firstIndex(of: ",") {
+        if let comma = candidate.firstIndex(of: ","), comma != candidate.startIndex {
             let surname = candidate[..<comma]
             let given = candidate[candidate.index(after: comma)...]
             candidate = "\(given) \(surname)"
         }
-        let honorifics: Set<String> = ["hon", "honorable", "sen", "senator", "rep", "representative"]
-        return candidate.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty && !honorifics.contains($0.lowercased()) }
-            .joined(separator: " ")
+        return candidate
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
             .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty && !ignoredTokens.contains($0) }
+            .joined(separator: " ")
+    }
+}
+
+enum StateCodes {
+    static let byName: [String: String] = [
+        "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR", "california": "CA",
+        "colorado": "CO", "connecticut": "CT", "delaware": "DE", "florida": "FL", "georgia": "GA",
+        "hawaii": "HI", "idaho": "ID", "illinois": "IL", "indiana": "IN", "iowa": "IA",
+        "kansas": "KS", "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+        "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+        "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+        "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+        "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+        "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+        "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT", "vermont": "VT",
+        "virginia": "VA", "washington": "WA", "west virginia": "WV", "wisconsin": "WI",
+        "wyoming": "WY", "district of columbia": "DC", "puerto rico": "PR", "guam": "GU",
+        "virgin islands": "VI", "american samoa": "AS", "northern mariana islands": "MP"
+    ]
+
+    static func code(for state: String) -> String? {
+        let trimmed = state.trimmingCharacters(in: .whitespaces)
+        if trimmed.count == 2, trimmed.allSatisfy(\.isLetter) { return trimmed.uppercased() }
+        return byName[trimmed.lowercased()]
     }
 }

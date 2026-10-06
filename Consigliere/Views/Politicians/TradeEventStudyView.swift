@@ -112,29 +112,31 @@ struct TradeEventStudyView: View {
     private var dates: some View {
         VStack(spacing: 11) {
             row("event.transaction", trade.transactionDate)
-            row("event.published", trade.filedDate)
-            HStack { Text("study.disclosureLag").foregroundStyle(.secondary); Spacer(); Text("\(trade.disclosureLagDays) days").font(.subheadline.monospacedDigit()) }
+            row("event.filed", trade.filedDate)
+            HStack { Text("study.disclosureLag").foregroundStyle(.secondary); Spacer(); Text("study.days \(trade.disclosureLagDays)").font(.subheadline.monospacedDigit()) }
             HStack { Text("study.owner").foregroundStyle(.secondary); Spacer(); Text(trade.owner.label) }
         }.consigliereCard()
     }
 
     private var whyItMatters: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Why it matters", systemImage: "lightbulb").font(.headline)
-            Text(trade.whyItMatters.isEmpty
-                ? "This filing is presented as newly public research information, not a real-time trade."
-                : trade.whyItMatters)
+            Label("event.whyItMatters", systemImage: "lightbulb").font(.headline)
+            if trade.whyItMatters.isEmpty {
+                Text("study.whyItMatters.default")
+            } else {
+                Text(trade.whyItMatters)
+            }
             ForEach(trade.rankingReasons, id: \.self) { reason in
                 Label(reason, systemImage: "checkmark.circle").font(.caption)
             }
-            Text("Research priority \(trade.rankingScore, format: .percent.precision(.fractionLength(0)))")
+            Text("study.researchPriority \(trade.rankingScore, format: .percent.precision(.fractionLength(0)))")
                 .font(.caption.weight(.semibold)).foregroundStyle(ConsigliereTheme.gold)
         }
         .consigliereCard()
     }
 
     private func row(_ label: LocalizedStringKey, _ date: Date) -> some View {
-        HStack { Text(label).foregroundStyle(.secondary); Spacer(); Text(date.formatted(date: .long, time: .omitted)).font(.subheadline) }
+        HStack { Text(label).foregroundStyle(.secondary); Spacer(); Text(date, format: DisclosureDates.style(.long)).font(.subheadline) }
     }
 
     private var methodology: some View {

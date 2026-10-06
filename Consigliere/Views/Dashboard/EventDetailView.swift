@@ -10,6 +10,8 @@ struct EventDetailView: View {
         return appState.instruments.first { $0.symbol == symbol }
     }
 
+    private var politician: Politician? { appState.politician(id: event.politicianID) }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -33,17 +35,29 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(event.source.label, systemImage: event.source.icon).font(.headline)
             Text(event.body).font(.body)
+            if let politician {
+                NavigationLink(value: politician) {
+                    Label("event.viewProfile \(politician.name)", systemImage: "person.crop.circle")
+                }
+            }
             Divider()
-            timestampRow("event.published", value: event.publishedAt)
-            timestampRow("event.retrieved", value: event.retrievedAt)
-            if let transactionDate = event.transactionDate { timestampRow("event.transaction", value: transactionDate) }
+            timestampRow(event.isDateOnly ? "event.filed" : "event.published", value: event.publishedAt, dateOnly: event.isDateOnly)
+            timestampRow("event.retrieved", value: event.retrievedAt, dateOnly: false)
+            if let transactionDate = event.transactionDate {
+                timestampRow("event.transaction", value: transactionDate, dateOnly: event.isDateOnly)
+            }
             Link(destination: event.sourceURL) { Label("event.openSource", systemImage: "arrow.up.right.square") }
         }
         .consigliereCard()
     }
 
-    private func timestampRow(_ title: LocalizedStringKey, value: Date) -> some View {
-        HStack { Text(title).foregroundStyle(.secondary); Spacer(); Text(value.formatted(date: .abbreviated, time: .shortened)).font(.subheadline.monospacedDigit()) }
+    private func timestampRow(_ title: LocalizedStringKey, value: Date, dateOnly: Bool) -> some View {
+        HStack {
+            Text(title).foregroundStyle(.secondary)
+            Spacer()
+            Text(value, format: dateOnly ? DisclosureDates.style() : Date.FormatStyle(date: .abbreviated, time: .shortened))
+                .font(.subheadline.monospacedDigit())
+        }
     }
 
     private func reactionChart(_ instrument: MarketInstrument) -> some View {
@@ -71,7 +85,7 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("event.analysis", systemImage: "sparkles").font(.headline)
             Text(event.explanation)
-            ProgressView(value: event.confidence) { Text("event.confidence") } currentValueLabel: { Text(event.confidence.formatted(.percent)) }
+            ProgressView(value: event.confidence) { Text("event.confidence") } currentValueLabel: { Text(event.confidence, format: .percent) }
             FlowLayout(items: event.topics)
         }
         .consigliereCard()
@@ -79,13 +93,13 @@ struct EventDetailView: View {
 
     private var rankingCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Why this ranked", systemImage: "list.number").font(.headline)
+            Label("event.whyRanked", systemImage: "list.number").font(.headline)
             Text(event.rankingScore, format: .percent.precision(.fractionLength(0)))
                 .font(.title2.bold().monospacedDigit())
             ForEach(event.rankingReasons, id: \.self) { reason in
                 Label(reason, systemImage: "checkmark.circle").font(.subheadline)
             }
-            Text("This score prioritizes research attention. It is not a trading recommendation.")
+            Text("event.whyRanked.note")
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .consigliereCard()

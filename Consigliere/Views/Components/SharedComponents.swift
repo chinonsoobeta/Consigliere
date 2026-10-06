@@ -39,7 +39,7 @@ struct ChangeLabel: View {
         Label(value.signedPercent, systemImage: value >= 0 ? "arrow.up.right" : "arrow.down.right")
             .font(.caption.weight(.bold))
             .foregroundStyle(value >= 0 ? ConsigliereTheme.positive : ConsigliereTheme.negative)
-            .accessibilityLabel(value >= 0 ? "Up \(value.signedPercent)" : "Down \(value.signedPercent)")
+            .accessibilityLabel(value >= 0 ? Text("change.up \(value.signedPercent)") : Text("change.down \(value.signedPercent)"))
     }
 }
 
@@ -56,7 +56,7 @@ struct MiniChart: View {
         }
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
-        .accessibilityLabel("Four hour price trend for \(instrument.name)")
+        .accessibilityLabel(Text("chart.trend \(instrument.name)"))
     }
 }
 
@@ -103,10 +103,10 @@ struct EventCard: View {
                 Label(event.source.label, systemImage: event.source.icon)
                     .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
-                Text(event.publishedAt, style: .relative).font(.caption).foregroundStyle(.secondary)
+                EventDateText(event: event).font(.caption).foregroundStyle(.secondary)
             }
             Text(event.title).font(.headline).foregroundStyle(.primary)
-            Text("Why it matters").font(.caption.weight(.bold)).foregroundStyle(ConsigliereTheme.gold)
+            Text("event.whyItMatters").font(.caption.weight(.bold)).foregroundStyle(ConsigliereTheme.gold)
             Text(event.explanation).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
             if let reason = event.rankingReasons.first {
                 Label(reason, systemImage: "line.3.horizontal.decrease.circle")
@@ -126,19 +126,131 @@ struct EventCard: View {
     }
 }
 
+/// Disclosure events carry calendar dates only, so they show the filing day (in UTC) rather
+/// than a misleading relative time; timestamped posts keep relative times.
+struct EventDateText: View {
+    let event: MarketEvent
+    var body: some View {
+        if event.isDateOnly {
+            Text(event.publishedAt, format: DisclosureDates.style())
+        } else {
+            Text(event.publishedAt, style: .relative)
+        }
+    }
+}
+
 struct SourceUnavailableView: View {
-    let title: String
-    let message: String
-    let retry: () -> Void
+    let title: LocalizedStringKey
+    let message: Text
+    var systemImage = "antenna.radiowaves.left.and.right.slash"
+    var retry: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(title, systemImage: "antenna.radiowaves.left.and.right.slash")
+            Label(title, systemImage: systemImage)
                 .font(.headline)
-            Text(message).font(.subheadline).foregroundStyle(.secondary)
-            Button("Retry", action: retry).buttonStyle(.bordered)
+            message.font(.subheadline).foregroundStyle(.secondary)
+            if let retry {
+                Button("common.retry", action: retry).buttonStyle(.bordered)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .consigliereCard()
+    }
+}
+
+/// Empty state that explains *why* a feed is empty using source health: a provider that is not
+/// configured needs an operator, not a retry; a failed provider can be retried.
+struct SourceAwareEmptyView: View {
+    @EnvironmentObject private var appState: AppState
+    let providers: [String]
+    let emptyTitle: LocalizedStringKey
+    let emptyMessage: LocalizedStringKey
+
+    private var sources: [SourceHealth] { providers.compactMap(appState.health(for:)) }
+
+    var body: some View {
+        if appState.isAwaitingFirstLoad || appState.isLoading {
+            ProgressView("common.loading")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+        } else if let error = appState.disclosureLoadError {
+            SourceUnavailableView(
+                title: "source.serviceUnavailable",
+                message: Text(error),
+                retry: { Task { await appState.load(force: true) } }
+            )
+        } else if !sources.isEmpty, sources.allSatisfy({ $0.status == .unconfigured }) {
+            SourceUnavailableView(
+                title: "source.notConfigured",
+                message: Text("source.notConfigured.body \(sources.map(\.displayName).joined(separator: ", "))"),
+                systemImage: "powerplug"
+            )
+        } else if let failed = sources.first(where: { $0.status == .failed }) {
+            SourceUnavailableView(
+                title: "source.failed",
+                message: Text("source.failed.body \(failed.displayName)"),
+                retry: { Task { await appState.load(force: true) } }
+            )
+        } else {
+            SourceUnavailableView(
+                title: emptyTitle,
+                message: Text(emptyMessage),
+                systemImage: "tray",
+                retry: { Task { await appState.load(force: true) } }
+            )
+        }
+    }
+}
+
+/// Warns when a source that should be producing data has failed or gone stale.
+struct SourceAlertBanner: View {
+    let sources: [SourceHealth]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("source.alert.title", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.orange)
+            ForEach(sources) { source in
+                Group {
+                    if let lastSuccess = source.lastSuccessAt {
+                        Text("source.alert.lastSuccess \(source.displayName) \(lastSuccess, format: .relative(presentation: .named))")
+                    } else {
+                        Text("source.alert.never \(source.displayName)")
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+struct PendingFilingRow: View {
+    let filing: PendingFiling
+
+    var body: some View {
+        Link(destination: filing.sourceURL) {
+            HStack(spacing: 12) {
+                Image(systemName: "doc.badge.clock")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 36, height: 36)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(filing.representative).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    Text("pending.filed \(DisclosureDates.day(filing.filedDate) ?? .now, format: DisclosureDates.style())")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text("pending.status").font(.caption2).foregroundStyle(.tertiary)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right.square").font(.caption).foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
         .consigliereCard()
     }
 }

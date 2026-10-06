@@ -5,9 +5,16 @@ struct DashboardView: View {
     @State private var scope = BriefScope.all
 
     enum BriefScope: String, CaseIterable, Identifiable {
-        case all, disclosures, politics, markets
+        case all, disclosures, politics
         var id: String { rawValue }
-        var title: String { rawValue.capitalized }
+        var title: LocalizedStringKey { LocalizedStringKey(stringLiteral: "brief.scope.\(rawValue)") }
+        var providers: [String] {
+            switch self {
+            case .all: ["apify", "truth-api"]
+            case .disclosures: ["apify"]
+            case .politics: ["truth-api"]
+            }
+        }
     }
 
     private var briefEvents: [MarketEvent] {
@@ -16,7 +23,6 @@ struct DashboardView: View {
             case .all: true
             case .disclosures: event.source == .houseDisclosure || event.source == .senateDisclosure
             case .politics: event.source == .truthSocial
-            case .markets: event.reaction != nil
             }
         }
     }
@@ -38,6 +44,9 @@ struct DashboardView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
                     header
+                    if !appState.sourceAlerts.isEmpty {
+                        SourceAlertBanner(sources: appState.sourceAlerts)
+                    }
                     DisclaimerBanner()
                     if !primaryMarkets.isEmpty {
                         marketSection("dashboard.northAmerica", subtitle: "dashboard.northAmerica.subtitle", instruments: primaryMarkets)
@@ -53,9 +62,9 @@ struct DashboardView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationBarHidden(true)
             .refreshable { await appState.load(force: true) }
-            .overlay { if appState.isLoading { ProgressView().controlSize(.large) } }
             .navigationDestination(for: MarketInstrument.self) { InstrumentDetailView(instrument: $0) }
             .navigationDestination(for: MarketEvent.self) { EventDetailView(event: $0) }
+            .navigationDestination(for: Politician.self) { PoliticianProfileView(politician: $0) }
         }
     }
 
@@ -91,28 +100,22 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Today’s Intelligence Brief").font(.title3.weight(.bold))
-                    Text("Ranked by freshness, materiality, political relevance, market context, and evidence quality.")
+                    Text("brief.title").font(.title3.weight(.bold))
+                    Text("brief.subtitle")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text("dashboard.observedOnly").font(.caption2.weight(.medium)).foregroundStyle(.secondary)
             }
-            Picker("Brief scope", selection: $scope) {
+            Picker("brief.scope", selection: $scope) {
                 ForEach(BriefScope.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            if let error = appState.disclosureLoadError {
-                SourceUnavailableView(
-                    title: "Live intelligence unavailable",
-                    message: error,
-                    retry: { Task { await appState.load(force: true) } }
-                )
-            } else if briefEvents.isEmpty {
-                SourceUnavailableView(
-                    title: "No verified intelligence yet",
-                    message: "Consigliere does not substitute fixtures or inferred records. Check source status or refresh.",
-                    retry: { Task { await appState.load(force: true) } }
+            if briefEvents.isEmpty {
+                SourceAwareEmptyView(
+                    providers: scope.providers,
+                    emptyTitle: "brief.empty",
+                    emptyMessage: "brief.empty.body"
                 )
             } else {
                 ForEach(briefEvents) { event in

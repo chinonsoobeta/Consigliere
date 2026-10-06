@@ -49,6 +49,13 @@ struct InstrumentSearchView: View {
         appState.politiciansWithDisclosures.filter(matchesPoliticianFilters)
     }
 
+    private var unmatchedFilerResults: [UnmatchedFiler] {
+        appState.unmatchedFilers.filter { filer in
+            let matchesChamber = selectedChamber == nil || filer.chamber == selectedChamber?.rawValue
+            return matchesChamber && (query.isEmpty || filer.representative.localizedCaseInsensitiveContains(query))
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -67,6 +74,8 @@ struct InstrumentSearchView: View {
                 } else {
                     if appState.disclosureLoadError != nil {
                         Section { disclosureErrorView }
+                    } else if appState.isAwaitingFirstLoad {
+                        Section { ProgressView("common.loading").frame(maxWidth: .infinity) }
                     }
                     if !disclosedPoliticianResults.isEmpty {
                         Section {
@@ -83,6 +92,12 @@ struct InstrumentSearchView: View {
                         }
                     } header: { Text("search.politicianResults \(politicianResults.count)") }
                     footer: { Text("search.rosterSource") }
+                    if !unmatchedFilerResults.isEmpty {
+                        Section {
+                            ForEach(unmatchedFilerResults) { unmatchedRow($0) }
+                        } header: { Text("search.unmatched \(unmatchedFilerResults.count)") }
+                        footer: { Text("search.unmatched.footer") }
+                    }
                 }
             }
             .listStyle(.insetGrouped)
@@ -183,6 +198,27 @@ struct InstrumentSearchView: View {
         }.padding(.vertical, 5)
     }
 
+    private func unmatchedRow(_ filer: UnmatchedFiler) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .resizable().scaledToFit().foregroundStyle(.secondary)
+                .frame(width: 32, height: 32)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(filer.representative).font(.subheadline.weight(.semibold))
+                if let latest = filer.latest.flatMap(DisclosureDates.day) {
+                    Text("search.unmatched.latest \(latest, format: DisclosureDates.style())")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing) {
+                Text(filer.records, format: .number).font(.headline.monospacedDigit())
+                Text("search.disclosures").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
     private func politicianRow(_ politician: Politician) -> some View {
         HStack(spacing: 12) {
             AsyncImage(url: politician.imageURL) { image in image.resizable().scaledToFill() } placeholder: {
@@ -195,14 +231,14 @@ struct InstrumentSearchView: View {
                     Text(politician.partyAbbreviation)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(politician.partyAbbreviation == "R" ? Color.red : (politician.partyAbbreviation == "D" ? Color.blue : Color.secondary))
-                    Text("· \(politician.jurisdiction)").font(.subheadline).foregroundStyle(.secondary)
+                    (Text("· ") + politician.jurisdiction).font(.subheadline).foregroundStyle(.secondary)
                 }
                 Label(politician.chamber.label, systemImage: politician.chamber.icon).font(.caption2).foregroundStyle(.tertiary)
             }
             Spacer()
             let tradeCount = appState.disclosureCount(for: politician)
             VStack(alignment: .trailing) {
-                Text(tradeCount.formatted()).font(.headline.monospacedDigit())
+                Text(tradeCount, format: .number).font(.headline.monospacedDigit())
                 Text("search.disclosures").font(.caption2).foregroundStyle(.secondary)
             }
         }.padding(.vertical, 4)

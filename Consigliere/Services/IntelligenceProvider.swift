@@ -10,6 +10,7 @@ struct DisclosureQuery: Sendable {
         case transaction, filed
     }
 
+    let politicianID: String?
     let representative: String?
     let chamber: Chamber?
     let from: Date?
@@ -19,6 +20,7 @@ struct DisclosureQuery: Sendable {
     let cursor: DisclosureCursor?
 
     init(
+        politicianID: String? = nil,
         representative: String? = nil,
         chamber: Chamber? = nil,
         from: Date? = nil,
@@ -27,6 +29,7 @@ struct DisclosureQuery: Sendable {
         limit: Int = 100,
         cursor: DisclosureCursor? = nil
     ) {
+        self.politicianID = politicianID
         self.representative = representative
         self.chamber = chamber
         self.from = from
