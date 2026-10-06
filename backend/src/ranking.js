@@ -40,9 +40,11 @@ export function whyDisclosureMatters(record) {
     ? "The source dates require review."
     : `The transaction preceded public disclosure by ${lag} days.`;
   const chamber = record.chamber === "senate" ? "Senate" : record.chamber === "house" ? "House" : "congressional";
-  const asset = String(record.assetName ?? "").includes(`(${record.ticker})`)
+  // Bonds, funds, and private holdings often have no ticker.
+  const named = !record.ticker || String(record.assetName ?? "").includes(`(${record.ticker})`)
     ? record.assetName
     : `${record.assetName} (${record.ticker})`;
+  const asset = record.assetType === "OP" ? `options on ${named}` : named;
   return `A ${chamber} filing reported a ${action} of ${asset} in the ${record.amountRange} range. ${timing} ${context}`;
 }
 
