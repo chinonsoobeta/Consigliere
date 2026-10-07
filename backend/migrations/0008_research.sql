@@ -54,9 +54,12 @@ CREATE TABLE interest_records (
 );
 CREATE INDEX interests_country_member ON interest_records(country, member_id, published_at DESC);
 
--- Preserve Bioguide as source_id; namespace the identifier shared by every country.
+-- Preserve Bioguide as source_id; namespace the identifier shared by every country. A large
+-- database may already be namespaced in batches before this runs: rewriting every disclosure in
+-- one transaction exceeds D1's limits. Both paths end in the same state.
 PRAGMA defer_foreign_keys = true;
-UPDATE politicians SET source_id=bioguide_id WHERE country='us' AND source_id IS NULL;
+UPDATE politicians SET source_id=CASE WHEN bioguide_id LIKE 'us:%' THEN substr(bioguide_id,4) ELSE bioguide_id END WHERE country='us' AND source_id IS NULL;
+DELETE FROM politicians WHERE bioguide_id NOT LIKE '%:%' AND EXISTS (SELECT 1 FROM politicians p WHERE p.bioguide_id='us:' || politicians.bioguide_id);
 UPDATE politicians SET bioguide_id='us:' || bioguide_id WHERE country='us' AND bioguide_id NOT LIKE 'us:%';
 UPDATE disclosures SET politician_id='us:' || politician_id WHERE politician_id IS NOT NULL AND politician_id NOT LIKE '%:%';
 DELETE FROM app_metadata WHERE key='roster_version';

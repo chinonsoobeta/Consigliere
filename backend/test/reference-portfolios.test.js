@@ -137,6 +137,17 @@ test('identity migration preserves existing disclosure IDs and foreign keys',()=
  assert.equal(sqlite.prepare('PRAGMA foreign_key_check').all().length,0);sqlite.close();
 });
 
+test('identity migration finishes a database already namespaced in batches',()=>{
+ const disclosure=(id,member)=>`INSERT INTO disclosures(id,provider,politician_id,representative,report_date,transaction_date,ticker,asset_name,transaction_type,owner,amount_range,raw_json,observed_at,updated_at) VALUES('${id}','test','${member}','Member','2026-02-01','2026-01-01','ABC','Example','purchase','member','$1,001 - $15,000','{}','2026-02-01','2026-02-01')`;
+ const {sqlite}=database(db=>{
+  db.exec("INSERT INTO politicians(bioguide_id,name,normalized_name,updated_at) VALUES('A','Member','member','2026-10-06'),('us:A','Member','member','2026-10-06')");
+  db.exec(disclosure('moved','us:A'));db.exec(disclosure('straggler','A'));
+ });
+ assert.deepEqual(sqlite.prepare('SELECT bioguide_id,source_id FROM politicians').all().map(r=>({...r})),[{bioguide_id:'us:A',source_id:'A'}]);
+ assert.deepEqual(sqlite.prepare('SELECT DISTINCT politician_id FROM disclosures').all().map(r=>r.politician_id),['us:A']);
+ assert.equal(sqlite.prepare('PRAGMA foreign_key_check').all().length,0);sqlite.close();
+});
+
 test('untickered funds stay separate and later purchases replace the missing-history status',()=>{
  const fund=buildMemberPortfolio([row('1','purchase','$1,001 - $15,000',{}, {asset_type:'MF',ticker:''})],{memberID:'A'});
  assert.equal(fund.positions[0].group,'funds');
