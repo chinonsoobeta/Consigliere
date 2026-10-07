@@ -72,7 +72,7 @@
 "search.prompt" = "Symbole, société, indice ou qualité de brut";
 "search.all" = "Tous";
 "search.party" = "Parti";
-"search.rosterSource" = "Répertoire des élus actuels issu de Congress.gov. Les décomptes incluent toutes les déclarations enregistrées attribuées à l’élu.";
+"search.rosterSource" = "Répertoire des élus actuels issu de Congress.gov. Les sénateurs y figurent, mais Consigliere ne couvre pour l’instant que les transactions de la Chambre; celles du Sénat arrivent bientôt.";
 "search.unmatched %lld" = "Anciens élus et déclarants non identifiés (%lld)";
 "search.unmatched.footer" = "Déclarants qui n’ont pu être associés à un élu en fonction, généralement d’anciens élus. Leurs déclarations restent visibles dans l’onglet Déclarations.";
 "search.unmatched.latest %@" = "Dernière déclaration %@";
@@ -102,7 +102,7 @@
 "study.chartCaption" = "Le jour 0 correspond à la transaction déclarée. Le repère pointillé indique quand la déclaration est devenue publique.";
 "study.days %lld" = "%lld jours";
 "settings.title" = "Réglages";
-"settings.about.body" = "Les transactions boursières des élus du Congrès, tirées directement des registres publics.";
+"settings.about.body" = "Les transactions boursières des élus de la Chambre, tirées directement des registres publics.";
 "settings.appearance" = "Apparence";
 "settings.theme" = "Thème";
 "appearance.system" = "Système";
@@ -144,9 +144,9 @@
 "home.posts" = "Publications politiques";
 "home.markets" = "Marchés";
 "home.aboutData" = "À propos de ces données";
-"home.footer" = "D’après les rapports périodiques de transactions de la Chambre et du Sénat. À titre informatif — pas un conseil en placement.";
+"home.footer" = "D’après les rapports périodiques de transactions de la Chambre. Les transactions du Sénat arrivent bientôt. À titre informatif — pas un conseil en placement.";
 "home.empty" = "Aucune déclaration pour l’instant";
-"home.empty.body" = "Les déclarations récentes de la Chambre et du Sénat apparaîtront ici. Tirez pour actualiser.";
+"home.empty.body" = "Les déclarations récentes de la Chambre apparaîtront ici. Tirez pour actualiser.";
 "trade.short.purchase" = "Achat";
 "trade.short.sale" = "Vente";
 "trade.short.exchange" = "Échange";
@@ -204,7 +204,7 @@
 "profile.coverage %lld %@ %@" = "D’après %1$lld déclarations du %2$@ au %3$@.";
 "profile.coverage.oneDay %lld %@" = "D’après %1$lld déclarations déposées le %2$@.";
 "settings.dataSources" = "Sources de données";
-"settings.dataSources.footer" = "Consigliere consulte plusieurs fois par jour les sites officiels de déclarations de la Chambre et du Sénat. Les documents numérisés sont lus automatiquement et chaque transaction renvoie à sa déclaration originale.";
+"settings.dataSources.footer" = "Consigliere consulte plusieurs fois par jour le site officiel de déclarations de la Chambre. Les documents numérisés sont lus automatiquement et chaque transaction renvoie à sa déclaration originale. Les transactions du Sénat ne sont pas encore incluses.";
 "settings.methodology" = "Fonctionnement";
 "settings.disclaimer" = "Avertissement";
 "methodology.late" = "Déclarations tardives";
@@ -215,7 +215,7 @@
 "methodology.matching.body" = "Les noms des déclarants sont rapprochés de la liste actuelle de Congress.gov par chambre, État et nom. Ceux qui ne peuvent être identifiés, généralement d’anciens élus, sont listés à part plutôt que devinés.";
 "onboarding.title" = "Suivez l’argent au Congrès";
 "onboarding.filings.title" = "Chaque transaction déclarée";
-"onboarding.filings.body" = "Les transactions boursières des élus du Congrès et de leur famille, d’après les déclarations officielles de la Chambre et du Sénat.";
+"onboarding.filings.body" = "Les transactions boursières des élus de la Chambre et de leur famille, d’après les déclarations officielles de la Chambre. Celles du Sénat arrivent bientôt.";
 "onboarding.timing.title" = "Déclarées des semaines plus tard";
 "onboarding.timing.body" = "Les élus ont jusqu’à 45 jours pour déclarer une transaction. Consigliere affiche les deux dates et signale les retards.";
 "onboarding.follow.title" = "Suivez des élus";
@@ -223,7 +223,7 @@
 "onboarding.disclaimer" = "Consigliere sert à l’information et à la recherche. Ce n’est pas un conseil en placement.";
 "onboarding.continue" = "Continuer";
 
-"home.thisWeek" = "Cette semaine au Congrès";
+"home.thisWeek" = "Cette semaine à la Chambre";
 "home.sinceVisit" = "Depuis votre dernière visite";
 "home.count.filings %lld" = "%lld nouvelles déclarations";
 "home.count.following %lld" = "%lld de membres suivis";
@@ -243,7 +243,7 @@
 "charts.peak %@ %lld" = "Activité maximale en %@ : %lld opérations";
 "charts.delaySummary %lld %lld %@" = "%lld déclarations tardives sur %lld; médiane de %@ jours";
 "portfolio.title" = "Portefeuille de référence";
-"portfolio.congress" = "Portefeuille de référence du Congrès";
+"portfolio.congress" = "Portefeuille de référence de la Chambre";
 "portfolio.member" = "Avoirs estimés";
 "portfolio.estimated" = "Estimation à partir des opérations déclarées";
 "portfolio.method" = "Méthode d'estimation des avoirs";
@@ -342,7 +342,7 @@
 "home.flow.footer" = "Compte les membres distincts dont les déclarations des 30 derniers jours indiquent un achat ou une vente. Les déclarations arrivent jusqu’à 45 jours après l’opération. À titre informatif — pas une recommandation.";
 "home.flow.buyers %lld" = "^[%lld acheteur](inflect: true)";
 "home.flow.sellers %lld" = "^[%lld vendeur](inflect: true)";
-"home.widelyHeld" = "Les plus détenues au Congrès";
+"home.widelyHeld" = "Les plus détenues à la Chambre";
 "home.widelyHeld.footer" = "Estimé à partir des opérations déclarées et des rapports annuels. Compte des membres, pas des dollars.";
 "home.tradeCount %lld" = "^[%lld opération](inflect: true)";
 "statement.homeFooter" = "Actions présidentielles qui nomment une entreprise ou un secteur. Une mention n’est pas une prédiction.";
@@ -373,10 +373,11 @@
 "statement.kind.policy" = "Politique";
 "statement.tagsFooter" = "Chaque étiquette cite les mots exacts sur lesquels elle repose. Signalez une étiquette erronée.";
 
-"home.hero.buying" = "Le Congrès *achète*.";
-"home.hero.selling" = "Le Congrès *vend*.";
+"home.hero.buying" = "La Chambre *achète*.";
+"home.hero.selling" = "La Chambre *vend*.";
 "home.hero.mixed" = "Achats et ventes, *à égalité*.";
 "home.hero.quiet" = "Une période *calme*.";
 "home.hero.week %lld %lld" = "^[%lld transaction](inflect: true) de ^[%lld membre](inflect: true), déposées ces sept derniers jours.";
 "home.hero.buys" = "Achats";
 "home.hero.sells" = "Ventes";
+"portfolio.notBuilt" = "Ce portefeuille est encore en préparation. Il est reconstruit à chaque synchronisation des données; revenez dans quelques heures.";

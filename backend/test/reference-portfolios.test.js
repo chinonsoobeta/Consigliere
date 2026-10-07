@@ -97,6 +97,24 @@ test('D1 schema and portfolio rebuild persist estimates and source-linked change
  sqlite.close();
 });
 
+test('Senate mode off hides Senate rows from listings, health and portfolios but keeps them stored',async()=>{
+ const {DB,sqlite}=database();
+ sqlite.prepare("INSERT INTO politicians(bioguide_id,name,normalized_name,updated_at) VALUES('us:H','House Member','house member','2026-10-06'),('us:S','Senator','senator','2026-10-06')").run();
+ const insert=sqlite.prepare("INSERT INTO disclosures(id,politician_id,provider,representative,report_date,transaction_date,ticker,asset_name,transaction_type,owner,amount_range,chamber,source_url,raw_json,observed_at,updated_at) VALUES(?,?,'test',?,'2026-10-01','2026-09-01','AAPL','Apple','purchase','member','$1,001 - $15,000',?,'https://example.com/'||?,'{}','2026-10-01','2026-10-01')");
+ insert.run('h','us:H','House Member','house','h');insert.run('s','us:S','Senator','senate','s');
+ sqlite.exec("INSERT INTO source_health(provider,display_name,status,last_attempt_at,records_seen,message) VALUES('apify','Structured House and Senate disclosures','failed','2026-10-06',0,'403')");
+ const env={DB,SENATE_MODE:'off'};
+ const listed=await worker.fetch(new Request('https://example.com/v1/disclosures'),env).then(r=>r.json());
+ assert.deepEqual(listed.data.map(d=>d.id),['h']);
+ const health=await worker.fetch(new Request('https://example.com/health'),env).then(r=>r.json());
+ assert.ok(!health.sources.some(s=>s.provider==='apify'));
+ await rebuildPortfolios(DB,env);
+ assert.equal((await readPortfolio(DB,'congress')).positions[0].membersHolding,1);
+ assert.equal((await readPortfolio(DB,'member/us:S',true,{env})).positions.length,0);
+ assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM disclosures WHERE chamber='senate'").get().count,1);
+ sqlite.close();
+});
+
 test('UK shareholding fixtures preserve thresholds, identities and ended dates',async()=>{
  const commons=JSON.parse(readFileSync(new URL('./fixtures/uk-commons-shareholding.json',import.meta.url)));
  const interest=commonsInterest(commons);assert.equal(interest.memberID,'uk:5158');assert.match(interest.thresholdText,/£70,000/);

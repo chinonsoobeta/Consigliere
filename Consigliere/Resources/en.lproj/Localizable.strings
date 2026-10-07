@@ -72,7 +72,7 @@
 "search.prompt" = "Ticker, company, index, or crude grade";
 "search.all" = "All";
 "search.party" = "Party";
-"search.rosterSource" = "Current-member directory from Congress.gov. Disclosure counts include every stored record matched to the member.";
+"search.rosterSource" = "Current-member directory from Congress.gov. Senators are listed, but Consigliere covers House trades only for now; Senate trades are coming.";
 "search.unmatched %lld" = "Former members and unmatched filers (%lld)";
 "search.unmatched.footer" = "Filers who could not be matched to a sitting member, usually former members. Their records still appear in the Disclosures feed.";
 "search.unmatched.latest %@" = "Latest filing %@";
@@ -102,7 +102,7 @@
 "study.chartCaption" = "Trading day 0 is the reported transaction. The dashed marker indicates when the filing became public.";
 "study.days %lld" = "%lld days";
 "settings.title" = "Settings";
-"settings.about.body" = "Stock trades by members of Congress, straight from the public record.";
+"settings.about.body" = "Stock trades by members of the House, straight from the public record.";
 "settings.appearance" = "Appearance";
 "settings.theme" = "Theme";
 "appearance.system" = "System";
@@ -144,9 +144,9 @@
 "home.posts" = "Political posts";
 "home.markets" = "Markets";
 "home.aboutData" = "About this data";
-"home.footer" = "From official House and Senate periodic transaction reports. Information only — not investment advice.";
+"home.footer" = "From official House periodic transaction reports. Senate trades are coming. Information only — not investment advice.";
 "home.empty" = "No filings yet";
-"home.empty.body" = "Recent House and Senate filings will appear here. Pull to refresh.";
+"home.empty.body" = "Recent House filings will appear here. Pull to refresh.";
 "trade.short.purchase" = "Buy";
 "trade.short.sale" = "Sell";
 "trade.short.exchange" = "Exchange";
@@ -204,7 +204,7 @@
 "profile.coverage %lld %@ %@" = "Based on %1$lld records from %2$@ to %3$@.";
 "profile.coverage.oneDay %lld %@" = "Based on %1$lld records filed on %2$@.";
 "settings.dataSources" = "Data sources";
-"settings.dataSources.footer" = "Consigliere checks the official House and Senate disclosure sites several times a day. Scanned filings are read automatically, and every trade links to its original filing.";
+"settings.dataSources.footer" = "Consigliere checks the official House disclosure site several times a day. Scanned filings are read automatically, and every trade links to its original filing. Senate trades are not included yet.";
 "settings.methodology" = "How it works";
 "settings.disclaimer" = "Disclaimer";
 "methodology.late" = "Late filings";
@@ -215,7 +215,7 @@
 "methodology.matching.body" = "Filer names are matched to the current Congress.gov roster by chamber, state, and name. Filers who cannot be matched, usually former members, are listed separately rather than guessed.";
 "onboarding.title" = "Follow the money in Congress";
 "onboarding.filings.title" = "Every reported trade";
-"onboarding.filings.body" = "Stock trades by members of Congress and their families, from official House and Senate filings.";
+"onboarding.filings.body" = "Stock trades by members of the House and their families, from official House filings. Senate trades are coming.";
 "onboarding.timing.title" = "Reported weeks later";
 "onboarding.timing.body" = "Members have up to 45 days to report a trade. Consigliere shows both dates and flags late filers.";
 "onboarding.follow.title" = "Follow members";
@@ -223,7 +223,7 @@
 "onboarding.disclaimer" = "Consigliere is for information and research. It is not investment advice.";
 "onboarding.continue" = "Continue";
 
-"home.thisWeek" = "This week in Congress";
+"home.thisWeek" = "This week in the House";
 "home.sinceVisit" = "Since your last visit";
 "home.count.filings %lld" = "%lld new filings";
 "home.count.following %lld" = "%lld from followed members";
@@ -243,7 +243,7 @@
 "charts.peak %@ %lld" = "Most active in %@: %lld trades";
 "charts.delaySummary %lld %lld %@" = "Late in %lld of %lld filings; median %@ days";
 "portfolio.title" = "Reference portfolio";
-"portfolio.congress" = "Congress reference portfolio";
+"portfolio.congress" = "House reference portfolio";
 "portfolio.member" = "Estimated holdings";
 "portfolio.estimated" = "Estimated from disclosed trades";
 "portfolio.method" = "How holdings are estimated";
@@ -342,7 +342,7 @@
 "home.flow.footer" = "Counts distinct members whose filings in the last 30 days report a purchase or sale. Filings arrive up to 45 days after a trade. Information only — not a recommendation.";
 "home.flow.buyers %lld" = "^[%lld buyer](inflect: true)";
 "home.flow.sellers %lld" = "^[%lld seller](inflect: true)";
-"home.widelyHeld" = "Most widely held in Congress";
+"home.widelyHeld" = "Most widely held in the House";
 "home.widelyHeld.footer" = "Estimated from disclosed trades and annual reports. Counts members, not dollars.";
 "home.tradeCount %lld" = "^[%lld trade](inflect: true)";
 "statement.homeFooter" = "Presidential actions that name a company or sector. A mention isn’t a prediction.";
@@ -373,10 +373,11 @@
 "statement.kind.policy" = "Policy";
 "statement.tagsFooter" = "Each tag quotes the exact words it is based on. Report a tag if it’s wrong.";
 
-"home.hero.buying" = "Congress is *buying*.";
-"home.hero.selling" = "Congress is *selling*.";
+"home.hero.buying" = "The House is *buying*.";
+"home.hero.selling" = "The House is *selling*.";
 "home.hero.mixed" = "Buying and selling, *evenly*.";
 "home.hero.quiet" = "A *quiet* stretch.";
 "home.hero.week %lld %lld" = "^[%lld trade](inflect: true) from ^[%lld member](inflect: true), filed in the last seven days.";
 "home.hero.buys" = "Buys";
 "home.hero.sells" = "Sells";
+"portfolio.notBuilt" = "This portfolio is still being prepared. It’s rebuilt with each data sync, so check back in a few hours.";

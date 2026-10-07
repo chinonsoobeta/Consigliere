@@ -72,7 +72,7 @@
 "search.prompt" = "Símbolo, empresa, índice o tipo de crudo";
 "search.all" = "Todos";
 "search.party" = "Partido";
-"search.rosterSource" = "Directorio de miembros actuales de Congress.gov. Los recuentos incluyen todos los registros guardados atribuidos al miembro.";
+"search.rosterSource" = "Directorio de miembros actuales de Congress.gov. Aparecen los senadores, pero por ahora Consigliere solo cubre las operaciones de la Cámara; las del Senado llegarán pronto.";
 "search.unmatched %lld" = "Exmiembros y declarantes sin identificar (%lld)";
 "search.unmatched.footer" = "Declarantes que no se pudieron asociar a un miembro en funciones, normalmente exmiembros. Sus registros siguen apareciendo en Declaraciones.";
 "search.unmatched.latest %@" = "Última declaración %@";
@@ -102,7 +102,7 @@
 "study.chartCaption" = "El día 0 es la transacción declarada. La línea discontinua indica cuándo se hizo pública la declaración.";
 "study.days %lld" = "%lld días";
 "settings.title" = "Ajustes";
-"settings.about.body" = "Las operaciones bursátiles de los miembros del Congreso, directamente del registro público.";
+"settings.about.body" = "Las operaciones bursátiles de los miembros de la Cámara, directamente del registro público.";
 "settings.appearance" = "Apariencia";
 "settings.theme" = "Tema";
 "appearance.system" = "Sistema";
@@ -144,9 +144,9 @@
 "home.posts" = "Publicaciones políticas";
 "home.markets" = "Mercados";
 "home.aboutData" = "Sobre estos datos";
-"home.footer" = "Basado en los informes periódicos de transacciones de la Cámara y el Senado. Solo información; no es asesoramiento financiero.";
+"home.footer" = "Basado en los informes periódicos de transacciones de la Cámara. Las operaciones del Senado llegarán pronto. Solo información; no es asesoramiento financiero.";
 "home.empty" = "Aún no hay declaraciones";
-"home.empty.body" = "Las declaraciones recientes de la Cámara y el Senado aparecerán aquí. Desliza para actualizar.";
+"home.empty.body" = "Las declaraciones recientes de la Cámara aparecerán aquí. Desliza para actualizar.";
 "trade.short.purchase" = "Compra";
 "trade.short.sale" = "Venta";
 "trade.short.exchange" = "Canje";
@@ -204,7 +204,7 @@
 "profile.coverage %lld %@ %@" = "Basado en %1$lld registros del %2$@ al %3$@.";
 "profile.coverage.oneDay %lld %@" = "Basado en %1$lld registros presentados el %2$@.";
 "settings.dataSources" = "Fuentes de datos";
-"settings.dataSources.footer" = "Consigliere revisa varias veces al día los sitios oficiales de declaraciones de la Cámara y el Senado. Los documentos escaneados se leen automáticamente y cada operación enlaza con su declaración original.";
+"settings.dataSources.footer" = "Consigliere revisa varias veces al día el sitio oficial de declaraciones de la Cámara. Los documentos escaneados se leen automáticamente y cada operación enlaza con su declaración original. Aún no se incluyen las operaciones del Senado.";
 "settings.methodology" = "Cómo funciona";
 "settings.disclaimer" = "Aviso legal";
 "methodology.late" = "Declaraciones tardías";
@@ -215,7 +215,7 @@
 "methodology.matching.body" = "Los nombres de los declarantes se vinculan con la lista actual de Congress.gov por cámara, estado y nombre. Quienes no pueden identificarse, normalmente exmiembros, se listan aparte en lugar de adivinarse.";
 "onboarding.title" = "Sigue el dinero en el Congreso";
 "onboarding.filings.title" = "Cada operación declarada";
-"onboarding.filings.body" = "Operaciones bursátiles de los miembros del Congreso y sus familias, según las declaraciones oficiales de la Cámara y el Senado.";
+"onboarding.filings.body" = "Operaciones bursátiles de los miembros de la Cámara y sus familias, según las declaraciones oficiales de la Cámara. Las del Senado llegarán pronto.";
 "onboarding.timing.title" = "Declaradas semanas después";
 "onboarding.timing.body" = "Los miembros tienen hasta 45 días para declarar una operación. Consigliere muestra ambas fechas y señala las declaraciones tardías.";
 "onboarding.follow.title" = "Sigue a miembros";
@@ -223,7 +223,7 @@
 "onboarding.disclaimer" = "Consigliere es solo para información e investigación. No es asesoramiento financiero.";
 "onboarding.continue" = "Continuar";
 
-"home.thisWeek" = "Esta semana en el Congreso";
+"home.thisWeek" = "Esta semana en la Cámara";
 "home.sinceVisit" = "Desde tu última visita";
 "home.count.filings %lld" = "%lld nuevas declaraciones";
 "home.count.following %lld" = "%lld de miembros que sigues";
@@ -243,7 +243,7 @@
 "charts.peak %@ %lld" = "Mayor actividad en %@: %lld operaciones";
 "charts.delaySummary %lld %lld %@" = "Demora en %lld de %lld declaraciones; mediana de %@ días";
 "portfolio.title" = "Cartera de referencia";
-"portfolio.congress" = "Cartera de referencia del Congreso";
+"portfolio.congress" = "Cartera de referencia de la Cámara";
 "portfolio.member" = "Tenencias estimadas";
 "portfolio.estimated" = "Estimado a partir de operaciones declaradas";
 "portfolio.method" = "Cómo se estiman las tenencias";
@@ -342,7 +342,7 @@
 "home.flow.footer" = "Cuenta los miembros distintos cuyas declaraciones de los últimos 30 días informan una compra o venta. Las declaraciones llegan hasta 45 días después de la operación. Solo información, no una recomendación.";
 "home.flow.buyers %lld" = "^[%lld comprador](inflect: true)";
 "home.flow.sellers %lld" = "^[%lld vendedor](inflect: true)";
-"home.widelyHeld" = "Lo más común en el Congreso";
+"home.widelyHeld" = "Lo más común en la Cámara";
 "home.widelyHeld.footer" = "Estimado a partir de operaciones declaradas e informes anuales. Cuenta miembros, no dólares.";
 "home.tradeCount %lld" = "^[%lld operación](inflect: true)";
 "statement.homeFooter" = "Acciones presidenciales que mencionan una empresa o un sector. Una mención no es una predicción.";
@@ -373,10 +373,11 @@
 "statement.kind.policy" = "Política";
 "statement.tagsFooter" = "Cada etiqueta cita las palabras exactas en que se basa. Informa si una etiqueta es incorrecta.";
 
-"home.hero.buying" = "El Congreso está *comprando*.";
-"home.hero.selling" = "El Congreso está *vendiendo*.";
+"home.hero.buying" = "La Cámara está *comprando*.";
+"home.hero.selling" = "La Cámara está *vendiendo*.";
 "home.hero.mixed" = "Compras y ventas, *a la par*.";
 "home.hero.quiet" = "Un periodo *tranquilo*.";
 "home.hero.week %lld %lld" = "^[%lld operación](inflect: true) de ^[%lld miembro](inflect: true), presentadas en los últimos siete días.";
 "home.hero.buys" = "Compras";
 "home.hero.sells" = "Ventas";
+"portfolio.notBuilt" = "Esta cartera aún se está preparando. Se reconstruye en cada sincronización de datos; vuelve a consultarla en unas horas.";

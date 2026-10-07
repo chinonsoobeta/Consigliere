@@ -167,6 +167,9 @@ struct ReferencePortfolioView: View {
             portfolio = try await loadedPortfolio
             changes = try await loadedChanges
             if portfolioID == "congress" { groups = (try? await appState.loadPortfolioGroups()) ?? [] }
+        } catch ConsigliereAPIClient.ClientError.serverStatus(404) {
+            // The server builds portfolios on its 12-hourly sync, so a fresh deploy has none yet.
+            self.error = String(localized: "portfolio.notBuilt")
         } catch { self.error = error.localizedDescription }
     }
 }

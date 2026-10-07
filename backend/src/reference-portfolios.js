@@ -3,6 +3,13 @@ import { stableUUID, bulkInsertStatements } from "./normalization.js";
 
 export const PORTFOLIO_METHOD_VERSION = 3;
 
+// SENATE_MODE "off" hides Senate rows wherever disclosures are served or aggregated. The rows
+// stay stored, so switching it back on restores them without a backfill.
+export function servedDisclosures(env, alias = "") {
+  const chamber = env?.SENATE_MODE === "off" ? ` AND ${alias}chamber = 'house'` : "";
+  return `${alias}suppressed_by IS NULL${chamber}`;
+}
+
 export function amountBand(text) {
   const numbers = String(text).match(/[\d][\d,]*(?:\.\d+)?/g)?.map((n) => Number(n.replaceAll(",", ""))) ?? [];
   if (!numbers.length) return null;
@@ -145,10 +152,10 @@ export function issuerNames(rows) {
   return new Map([...counts].map(([ticker, byName]) => [ticker, [...byName].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0][0]]));
 }
 
-export async function rebuildPortfolios(db) {
+export async function rebuildPortfolios(db, env) {
   // Read all served records, including historical pages; never reconstruct from the snapshot.
   const [disclosures, members, assignments, annuals, securities] = await Promise.all([
-    db.prepare("SELECT d.*, s.sector FROM disclosures d LEFT JOIN securities s ON s.ticker = d.ticker WHERE d.suppressed_by IS NULL AND d.politician_id IS NOT NULL").all(),
+    db.prepare(`SELECT d.*, s.sector FROM disclosures d LEFT JOIN securities s ON s.ticker = d.ticker WHERE ${servedDisclosures(env, "d.")} AND d.politician_id IS NOT NULL`).all(),
     db.prepare("SELECT bioguide_id, service_end FROM politicians WHERE country = 'us'").all(),
     db.prepare("SELECT * FROM committee_assignments WHERE end_date IS NULL").all(),
     db.prepare("SELECT * FROM house_annual_reports WHERE status='extracted'").all(),
@@ -177,9 +184,9 @@ export async function rebuildPortfolios(db) {
   return { portfolios: all.length, methodVersion: PORTFOLIO_METHOD_VERSION };
 }
 
-export async function readPortfolio(db, id, ownOnly = false, { ticker = null, limit = null } = {}) {
+export async function readPortfolio(db, id, ownOnly = false, { ticker = null, limit = null, env = null } = {}) {
   if (ownOnly && id.startsWith("member/")) {
-    const rows = await db.prepare("SELECT * FROM disclosures WHERE politician_id = ? AND suppressed_by IS NULL").bind(id.slice(7)).all();
+    const rows = await db.prepare(`SELECT * FROM disclosures WHERE politician_id = ? AND ${servedDisclosures(env)}`).bind(id.slice(7)).all();
     const member = await db.prepare("SELECT service_end FROM politicians WHERE bioguide_id = ?").bind(id.slice(7)).first();
     const annuals=await db.prepare("SELECT * FROM house_annual_reports WHERE member_id=?").bind(id.slice(7)).all();
     return buildMemberPortfolio(rows.results, { memberID: id.slice(7), frozenAt: member?.service_end, ownOnly, anchor: annualAnchor(annuals.results,id.slice(7),member?.service_end) });

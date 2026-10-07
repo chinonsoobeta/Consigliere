@@ -1,6 +1,6 @@
 import { syncHouseAnnual } from "./house-annual.js";
 import { syncUK, interestRoute, matchUnresolvedInterests } from "./interests.js";
-import { researchRoute, rebuildPortfolios, syncStatements, syncSecurityMetadata, syncCommittees, syncServiceDates } from "./research.js";
+import { researchRoute, rebuildPortfolios, servedDisclosures, syncStatements, syncSecurityMetadata, syncCommittees, syncServiceDates } from "./research.js";
 import {
   collectApifyDisclosures, collectMarketData, collectOfficialFilings, collectTruthPosts, fetchHouseReport
 } from "./providers.js";
@@ -143,7 +143,7 @@ export default {
 async function runHouseSchedule(env) {
   const transactions = await extractHouseReports(env);
   const annuals = await withHealth(env,"house-annual","House annual asset reports",()=>syncHouseAnnual(env,{refreshIndex:false}));
-  if (annuals.recordsWritten) await rebuildPortfolios(env.DB);
+  if (annuals.recordsWritten) await rebuildPortfolios(env.DB, env);
   return { transactions, annuals };
 }
 
@@ -153,7 +153,7 @@ async function runScheduled(env) {
   const rerank = await rerankRecentDisclosures(env);
   const rematch = await rematchDisclosures(env);
   const securityMatching = await withHealth(env, "security-matching", "Listed-security matching", () => matchUnresolvedInterests(env));
-  const portfolios = await rebuildPortfolios(env.DB);
+  const portfolios = await rebuildPortfolios(env.DB, env);
   return { ...live, rerank, rematch, securityMatching, portfolios };
 }
 
@@ -171,7 +171,7 @@ async function health(env) {
            records_seen, message, coverage_start, coverage_end
     FROM source_health ORDER BY provider
   `).all();
-  const sources = mergeSourceHealth(result.results);
+  const sources = mergeSourceHealth(result.results, pausedSources(env));
   const degraded = sources.some((source) => source.status !== "available");
   return json({ status: degraded ? "degraded" : "ok", version: WORKER_VERSION, sources });
 }
@@ -195,11 +195,11 @@ async function snapshot(env) {
     `).all(),
     env.DB.prepare(`
       SELECT ${DISCLOSURE_COLUMNS} FROM disclosures
-      WHERE report_date >= ? AND suppressed_by IS NULL ORDER BY report_date DESC LIMIT 2000
+      WHERE report_date >= ? AND ${servedDisclosures(env)} ORDER BY report_date DESC LIMIT 2000
     `).bind(daysAgo(SNAPSHOT_RECENT_DAYS, now)).all(),
     env.DB.prepare(`
       SELECT ${DISCLOSURE_COLUMNS} FROM disclosures
-      WHERE ranking_score > 0 AND suppressed_by IS NULL
+      WHERE ranking_score > 0 AND ${servedDisclosures(env)}
       ORDER BY ranking_score DESC, report_date DESC LIMIT 250
     `).all(),
     env.DB.prepare(`
@@ -219,11 +219,11 @@ async function snapshot(env) {
     env.DB.prepare(`
       SELECT politician_id, COUNT(*) AS records, MIN(report_date) AS earliest,
              MAX(report_date) AS latest
-      FROM disclosures WHERE politician_id IS NOT NULL AND suppressed_by IS NULL GROUP BY politician_id
+      FROM disclosures WHERE politician_id IS NOT NULL AND ${servedDisclosures(env)} GROUP BY politician_id
     `).all(),
     env.DB.prepare(`
       SELECT representative, chamber, COUNT(*) AS records, MAX(report_date) AS latest
-      FROM disclosures WHERE politician_id IS NULL AND suppressed_by IS NULL
+      FROM disclosures WHERE politician_id IS NULL AND ${servedDisclosures(env)}
       GROUP BY representative, chamber ORDER BY records DESC LIMIT 100
     `).all(),
     env.DB.prepare(`
@@ -263,7 +263,7 @@ async function snapshot(env) {
       instruments: instruments.results.map(mapInstrument),
       intelligence,
       disclosures: disclosureData,
-      sourceHealth: mergeSourceHealth(healthRows.results),
+      sourceHealth: mergeSourceHealth(healthRows.results, pausedSources(env)),
       coverage,
       politicianSummaries: summaries.results.map((row) => ({
         politicianID: row.politician_id,
@@ -310,7 +310,7 @@ async function listDisclosures(url, env) {
     if (value && !ISO_DAY.test(value)) return json({ error: "invalid_date", expected: "YYYY-MM-DD" }, 400);
   }
   if (Boolean(cursorDate) !== Boolean(cursorID)) return json({ error: "invalid_cursor" }, 400);
-  const clauses = ["suppressed_by IS NULL"];
+  const clauses = [servedDisclosures(env)];
   const values = [];
   if (politicianID) { clauses.push("politician_id = ?"); values.push(politicianID); }
   if (ticker) { clauses.push("ticker = ?"); values.push(ticker); }
@@ -365,7 +365,8 @@ async function listSourceFilings(url, env) {
 async function syncAll(env) {
   const initial = await Promise.allSettled([syncMarkets(env), syncOfficial(env)]);
   const remaining = await Promise.allSettled([
-    syncRoutineApify(env),
+    // Apify was the only Senate source; with the Senate hidden its House rows add nothing over the PDFs.
+    env.SENATE_MODE === "off" ? Promise.resolve({ provider: "apify", status: "available", recordsSeen: 0, message: "Paused" }) : syncRoutineApify(env),
     syncTruth(env),
     withHealth(env, "securities", "SEC company and sector metadata", () => syncSecurityMetadata(env)),
     withHealth(env, "uk-interests", "UK Parliament declared interests", () => syncUK(env)),
@@ -985,7 +986,7 @@ async function withHealth(env, provider, displayName, operation, { recordHealth 
 async function disclosureCoverage(env) {
   const result = await env.DB.prepare(`
     SELECT chamber, MIN(report_date) AS earliest, MAX(report_date) AS latest, COUNT(*) AS records
-    FROM disclosures WHERE suppressed_by IS NULL GROUP BY chamber
+    FROM disclosures WHERE ${servedDisclosures(env)} GROUP BY chamber
   `).all();
   return result.results.map((row) => ({
     chamber: row.chamber,
@@ -1203,9 +1204,14 @@ function mapHealth(row) {
   };
 }
 
-function mergeSourceHealth(rows) {
+// A paused source keeps its last health row, but reporting its old failure would mark the service degraded.
+function pausedSources(env) {
+  return env.SENATE_MODE === "off" ? ["apify"] : [];
+}
+
+function mergeSourceHealth(rows, hidden = []) {
   const existing = new Map(rows.map((row) => [row.provider, mapHealth(row)]));
-  return EXPECTED_SOURCES.map(([provider, displayName]) => existing.get(provider) ?? {
+  return EXPECTED_SOURCES.filter(([provider]) => !hidden.includes(provider)).map(([provider, displayName]) => existing.get(provider) ?? {
     provider,
     displayName,
     status: "unconfigured",

@@ -1,4 +1,4 @@
-import { rebuildPortfolios, readPortfolio } from "./reference-portfolios.js";
+import { rebuildPortfolios, readPortfolio, servedDisclosures } from "./reference-portfolios.js";
 import { collectStatements, tagStatement, relevance, TAG_PROMPT_VERSION, TAG_MODEL } from "./statements.js";
 import { stableUUID, bulkInsertStatements } from "./normalization.js";
 
@@ -105,7 +105,7 @@ export async function researchRoute(request, env, mapDisclosure) {
     if (changes) id = id.slice(0, -8);
     if (changes) {
       if (url.searchParams.get("own_only") === "true" && id.startsWith("member/")) {
-        const portfolio = await readPortfolio(env.DB, id, true);
+        const portfolio = await readPortfolio(env.DB, id, true, { env });
         return response({ data: portfolio.changes.slice().reverse().slice(0,500) });
       }
       const result = await env.DB.prepare("SELECT * FROM reference_changes WHERE portfolio_id=? ORDER BY filed_date DESC, id DESC LIMIT 500").bind(id).all();
@@ -114,7 +114,7 @@ export async function researchRoute(request, env, mapDisclosure) {
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
     const portfolio = await readPortfolio(env.DB, id, url.searchParams.get("own_only") === "true", {
       ticker: url.searchParams.get("ticker")?.toUpperCase() || null,
-      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 1000) : null
+      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 1000) : null, env
     });
     return response(portfolio ? { data: portfolio } : { error: "portfolio_not_built" }, portfolio ? 200 : 404);
   }
@@ -138,7 +138,7 @@ export async function researchRoute(request, env, mapDisclosure) {
       const date = new Date(statement.publishedAt).valueOf();
       [holdings, trades] = await Promise.all([
         env.DB.prepare(`SELECT ticker, members_holding FROM reference_positions WHERE portfolio_id='congress' AND asset_group='stocks' AND ticker IN (${args})`).bind(...tickers).all().then((r) => r.results.map((h) => ({ ticker: h.ticker, membersHolding: h.members_holding }))),
-        env.DB.prepare(`SELECT * FROM disclosures WHERE suppressed_by IS NULL AND ticker IN (${args}) AND transaction_date BETWEEN ? AND ? ORDER BY transaction_date DESC`).bind(...tickers, new Date(date-30*86_400_000).toISOString().slice(0,10), new Date(date+30*86_400_000).toISOString().slice(0,10)).all().then((r) => r.results.map(mapDisclosure))
+        env.DB.prepare(`SELECT * FROM disclosures WHERE ${servedDisclosures(env)} AND ticker IN (${args}) AND transaction_date BETWEEN ? AND ? ORDER BY transaction_date DESC`).bind(...tickers, new Date(date-30*86_400_000).toISOString().slice(0,10), new Date(date+30*86_400_000).toISOString().slice(0,10)).all().then((r) => r.results.map(mapDisclosure))
       ]);
     }
     return response({ data: { ...statement, relatedHoldings: holdings, relatedTrades: trades } });
@@ -161,7 +161,7 @@ export async function researchRoute(request, env, mapDisclosure) {
 }
 
 function response(body, status = 200) { return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" } }); }
-export { rebuildPortfolios };
+export { rebuildPortfolios, servedDisclosures };
 
 // A removed member stays in D1. The public roster's last term end supplies the
 // cutoff for that member's estimate; current members never freeze at a future date.
