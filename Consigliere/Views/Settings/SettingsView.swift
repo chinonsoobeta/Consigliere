@@ -25,6 +25,15 @@ struct SettingsView: View {
                         ForEach(AppLanguage.allCases) { language in Text(verbatim: language.label).tag(language) }
                     }
                 }
+                Section("countries.home") {
+                    ForEach(Country.allCases) { country in
+                        Toggle(country.label, isOn: Binding(get: { appState.homeCountries.contains(country) }, set: { enabled in
+                            var countries = appState.homeCountries
+                            if enabled { countries.insert(country) } else { countries.remove(country) }
+                            appState.homeCountries = countries
+                        }))
+                    }
+                }
                 Section("settings.data") {
                     NavigationLink { DataSourcesView() } label: {
                         HStack {
@@ -133,10 +142,13 @@ struct PrivacyView: View {
 struct MethodologyView: View {
     var body: some View {
         List {
+            Section("home.notableWeek") { Text("home.notableMethod") }
+            Section("portfolio.method") { Text("portfolio.method.body") }
             Section("methodology.disclosures") { Text("methodology.disclosures.body") }
             Section("methodology.late") { Text("methodology.late.body") }
             Section("methodology.highlights") { Text("methodology.highlights.body") }
             Section("methodology.matching") { Text("methodology.matching.body") }
+            Section("interests.title") { Text("interests.method"); ParliamentAttribution() }
             Section("methodology.prices") { Text("methodology.prices.body") }
         }
         .navigationTitle("settings.methodology")

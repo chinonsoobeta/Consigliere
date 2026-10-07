@@ -1,6 +1,15 @@
 import Charts
 import SwiftUI
 
+struct ParliamentAttribution: View {
+    var body: some View {
+        Link(destination: URL(string: "https://www.parliament.uk/site-information/copyright/open-parliament-licence/")!) {
+            Text(verbatim: "Contains Parliamentary information licensed under the Open Parliament Licence v3.0.")
+        }
+        .font(.caption)
+    }
+}
+
 struct Wordmark: View {
     var compact = false
     var body: some View {
@@ -324,8 +333,10 @@ struct ChamberTag: View {
 /// filing or profile) it leads with what was traded.
 struct TradeRow: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let trade: DisclosureTrade
     var showsMember = true
+    @State private var showStock = false
 
     private var politician: Politician? { appState.politician(id: trade.politicianID) }
 
@@ -335,11 +346,17 @@ struct TradeRow: View {
                 PoliticianAvatar(politician: politician, fallbackName: trade.representative, size: 40)
             }
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                let summaryLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 6))
+                summaryLayout {
                     TradeTypePill(type: trade.type)
-                    Text(verbatim: trade.displaySymbol).font(.headline.monospaced()).lineLimit(1)
+                    if !trade.symbol.isEmpty {
+                        Button { showStock = true } label: { Text(verbatim: trade.displaySymbol).font(.headline.monospaced()) }
+                            .buttonStyle(.borderless)
+                    } else { Text(verbatim: trade.displaySymbol).font(.headline.monospaced()).lineLimit(1) }
                     if trade.isOption { OptionsTag() }
-                    Spacer(minLength: 8)
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                     AmountText(amount: trade.amount)
                         .font(.subheadline.weight(.semibold).monospacedDigit())
                         .foregroundStyle(.primary)
@@ -348,16 +365,18 @@ struct TradeRow: View {
                     (Text(verbatim: politician?.name ?? trade.representative).foregroundStyle(.primary)
                         + Text(verbatim: politician.map { " · \($0.shortLabel)" } ?? "").foregroundStyle(.secondary))
                         .font(.subheadline)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 } else {
-                    Text(verbatim: trade.assetName).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    Text(verbatim: trade.assetName).font(.subheadline).foregroundStyle(.secondary).lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 }
                 detailLine.font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 3)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(trade.type.label) + Text(verbatim: " · " + trade.displaySymbol + " · " + trade.amountRange + (showsMember ? " · " + (politician?.name ?? trade.representative) : "")) + Text(verbatim: " · ") + detailLine)
+        .navigationDestination(isPresented: $showStock) { StockDetailView(symbol: trade.symbol) }
     }
 
     private var detailLine: Text {

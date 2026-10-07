@@ -4,9 +4,10 @@ import SwiftUI
 struct TradesView: View {
     @EnvironmentObject private var appState: AppState
     @State private var query = ""
-    @State private var filter = TradeFilter.all
+    @State private var filter = TransactionFilter.all
+    @State private var path = NavigationPath()
 
-    enum TradeFilter: String, CaseIterable, Identifiable {
+    enum TransactionFilter: String, CaseIterable, Identifiable {
         case all, purchase, sale
         var id: String { rawValue }
         var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "trades.filter.\(rawValue)") }
@@ -19,7 +20,7 @@ struct TradesView: View {
             case .purchase: trade.type == .purchase
             case .sale: trade.type == .sale
             }
-            guard matchesType else { return false }
+            guard appState.tradeFilter.matches(trade) && matchesType else { return false }
             guard !query.isEmpty else { return true }
             let name = appState.politician(id: trade.politicianID)?.name ?? trade.representative
             return [trade.symbol, trade.assetName, name].contains { $0.localizedCaseInsensitiveContains(query) }
@@ -34,11 +35,11 @@ struct TradesView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 Section {
                     Picker("trades.filter", selection: $filter) {
-                        ForEach(TradeFilter.allCases) { Text($0.label).tag($0) }
+                        ForEach(TransactionFilter.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
@@ -46,7 +47,10 @@ struct TradesView: View {
                 } footer: {
                     Text("trades.window.footer")
                 }
-                if !appState.pendingFilings.isEmpty && query.isEmpty {
+                if appState.tradeFilter != TradeFilter() {
+                    Button("home.clearFilters") { appState.tradeFilter = TradeFilter() }
+                }
+                if !appState.pendingFilings.isEmpty && query.isEmpty && appState.tradeFilter == TradeFilter() {
                     Section {
                         DisclosureGroup {
                             ForEach(appState.pendingFilings) { PendingFilingRow(filing: $0) }
@@ -59,11 +63,15 @@ struct TradesView: View {
                 }
                 if appState.latestTrades.isEmpty {
                     Section {
-                        SourceAwareEmptyView(
-                            providers: AppState.disclosureProviders,
-                            emptyTitle: "home.empty",
-                            emptyMessage: "home.empty.body"
-                        )
+                        if let error = appState.latestLoadError {
+                            SourceUnavailableView(title: "source.serviceUnavailable", message: Text(verbatim: error), retry: { Task { await appState.load(force: true) } })
+                        } else {
+                            SourceAwareEmptyView(
+                                providers: AppState.disclosureProviders,
+                                emptyTitle: "home.empty",
+                                emptyMessage: "home.empty.body"
+                            )
+                        }
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
@@ -83,6 +91,7 @@ struct TradesView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("tab.trades")
             .searchable(text: $query, prompt: "trades.searchPrompt")
+            .onReceive(appState.$tradeFilter) { _ in path = NavigationPath(); filter = .all; query = "" }
             .refreshable { await appState.load(force: true) }
             .consigliereDestinations()
         }

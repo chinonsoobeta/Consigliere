@@ -8,10 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		04AF15D5739A997FEFF4056E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086EE0A1D8F00BF9C0D05F21 /* HomeView.swift */; };
+		0577F132AB9EC5E95DF56CCE /* DeclaredInterestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60DD4E785556368AE429838 /* DeclaredInterestsView.swift */; };
+		09D539D5427B68181B126E12 /* ReferencePortfolioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ACE37E0FC2F8FF0052CA924 /* ReferencePortfolioView.swift */; };
 		0A825D042F5EDEE4949F0FF6 /* ConsigliereAPIProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43432B8C7A737DDC87136EE /* ConsigliereAPIProviderTests.swift */; };
+		149A1C8C531EEE5635DD732F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E4D3FAD6C6EA10A94951ED41 /* PrivacyInfo.xcprivacy */; };
+		19CCD00DC844D3967EC202A5 /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4C9C88BF883EAACD5FE3427 /* StockDetailView.swift */; };
 		24362DA2FBC99183C34C9C58 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = FB6ACE4C1B2F8467AE7B6CF1 /* Localizable.strings */; };
 		24A598847C422EA9858FB67A /* MarketsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A4FA0890B4A33042B82951 /* MarketsView.swift */; };
 		268D38A8E4D4459F94B10D08 /* IntelligenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C629C7275407F7D8D0957BF6 /* IntelligenceProvider.swift */; };
+		2CE2EBD2D5BFC4D59F0CE5A0 /* TradeAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B061E9E50CA334FF1877814 /* TradeAnalytics.swift */; };
+		2D8F349BF30CB8C65CAA9FDA /* FilingCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29BB4EC1AA4754A45D0746BC /* FilingCharts.swift */; };
 		3BB35364DF9A1136CAC31FF9 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F47D9161BDBAF0396CF6FC6 /* EventDetailView.swift */; };
 		463CC1C1EA93E8A88F340234 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5E9D9825D80F73ACA27B73 /* RootTabView.swift */; };
 		4835E085D2DAB2983FC088C1 /* CongressRosterLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426F85803DEDB3B4E77884ED /* CongressRosterLoader.swift */; };
@@ -22,6 +28,7 @@
 		6CDE68EDF1D32DE38CC1DB2B /* TradesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C634566E6E21D6AFBFF6422 /* TradesView.swift */; };
 		76694328DEE16202C12E6D6A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB5865330529207C888132BE /* AppState.swift */; };
 		7C886124334F329EB9684577 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2947A78158E8C694D90078AD /* OnboardingView.swift */; };
+		7D2CB8DD418FF96E6E02D575 /* ResearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF57F2BE84F8C015BA24B312 /* ResearchModels.swift */; };
 		82E811D67BD7EABDEEA6E458 /* AnalysisEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E778A3D2EC9753CF6B36B44F /* AnalysisEngineTests.swift */; };
 		8D62D55ABB4C08D3F7435DE6 /* current-politicians.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A2E5E04CA325725021C5919 /* current-politicians.json */; };
 		A526CE691921FC240101AA91 /* PoliticianProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CAC39EFEA588799DDB90CBE /* PoliticianProfileView.swift */; };
@@ -29,6 +36,7 @@
 		AC6C2D6FA7E5C34CB5A22D7B /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA4E8C53238ACD4F46FA0463 /* SharedComponents.swift */; };
 		AE09C70CE0F531F6185F747E /* InstrumentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDD8B837E21680B984857A8 /* InstrumentDetailView.swift */; };
 		C757170A94353FADBFB3BF66 /* MembersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35633CD95273B2EC6622F523 /* MembersView.swift */; };
+		C945DFF21621C336DE217629 /* StatementDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC83EEDBAF3001686733F854 /* StatementDetailView.swift */; };
 		D51BA1250FAF078CA707CCED /* PoliticianModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C42F11098DEBB062E6000036 /* PoliticianModels.swift */; };
 		DA31A93D02C3FB24A6487EE2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4017D38E49D6529E2422C4B6 /* Assets.xcassets */; };
 		F1D82B2729304B75219D1B47 /* FilingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB6EBE8E9577252254518B5 /* FilingDetailView.swift */; };
@@ -53,10 +61,13 @@
 		086EE0A1D8F00BF9C0D05F21 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		144A5424F78E03BC86D6B277 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		16A9B2D2D548BD2CE264ECAC /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Localizable.strings; sourceTree = "<group>"; };
+		1B061E9E50CA334FF1877814 /* TradeAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradeAnalytics.swift; sourceTree = "<group>"; };
 		2947A78158E8C694D90078AD /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		29BB4EC1AA4754A45D0746BC /* FilingCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilingCharts.swift; sourceTree = "<group>"; };
 		35633CD95273B2EC6622F523 /* MembersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembersView.swift; sourceTree = "<group>"; };
 		4017D38E49D6529E2422C4B6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		426F85803DEDB3B4E77884ED /* CongressRosterLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CongressRosterLoader.swift; sourceTree = "<group>"; };
+		4ACE37E0FC2F8FF0052CA924 /* ReferencePortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferencePortfolioView.swift; sourceTree = "<group>"; };
 		4F0238A7BF8A0ECA1DE46E2E /* PoliticianAnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoliticianAnalyticsTests.swift; sourceTree = "<group>"; };
 		54ECC6CD9213A025AC5C1347 /* en-CA */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en-CA"; path = "en-CA.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		5A2E5E04CA325725021C5919 /* current-politicians.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "current-politicians.json"; sourceTree = "<group>"; };
@@ -70,15 +81,21 @@
 		8EB6EBE8E9577252254518B5 /* FilingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilingDetailView.swift; sourceTree = "<group>"; };
 		9C5E9D9825D80F73ACA27B73 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
 		AB5865330529207C888132BE /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		AC83EEDBAF3001686733F854 /* StatementDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatementDetailView.swift; sourceTree = "<group>"; };
 		B332EBC39813171731180EB8 /* Consigliere.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Consigliere.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BA4E8C53238ACD4F46FA0463 /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
+		BF57F2BE84F8C015BA24B312 /* ResearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchModels.swift; sourceTree = "<group>"; };
+		C1CBDDAFEA5342460F62E326 /* fr-CA */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "fr-CA"; path = "fr-CA.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		C42F11098DEBB062E6000036 /* PoliticianModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoliticianModels.swift; sourceTree = "<group>"; };
 		C629C7275407F7D8D0957BF6 /* IntelligenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceProvider.swift; sourceTree = "<group>"; };
 		C905C74CDACF1891737C5652 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E231171F57185B2972863D64 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		E43432B8C7A737DDC87136EE /* ConsigliereAPIProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsigliereAPIProviderTests.swift; sourceTree = "<group>"; };
+		E4D3FAD6C6EA10A94951ED41 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E778A3D2EC9753CF6B36B44F /* AnalysisEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisEngineTests.swift; sourceTree = "<group>"; };
 		F0A4FA0890B4A33042B82951 /* MarketsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketsView.swift; sourceTree = "<group>"; };
+		F4C9C88BF883EAACD5FE3427 /* StockDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockDetailView.swift; sourceTree = "<group>"; };
+		F60DD4E785556368AE429838 /* DeclaredInterestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeclaredInterestsView.swift; sourceTree = "<group>"; };
 		F67DC7AB8B01F3A81996351E /* ConsigliereTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ConsigliereTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA5CF07108D5605D34F0D1F5 /* TradeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradeDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -142,6 +159,14 @@
 			path = ConsigliereTests;
 			sourceTree = "<group>";
 		};
+		58DE2FEFDF470DE3CA95AD77 /* Stocks */ = {
+			isa = PBXGroup;
+			children = (
+				F4C9C88BF883EAACD5FE3427 /* StockDetailView.swift */,
+			);
+			path = Stocks;
+			sourceTree = "<group>";
+		};
 		5A7B0E88DDC46DA146800AA9 /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
@@ -164,6 +189,8 @@
 			children = (
 				016A5D2110E70B10F4771EB4 /* Models.swift */,
 				C42F11098DEBB062E6000036 /* PoliticianModels.swift */,
+				BF57F2BE84F8C015BA24B312 /* ResearchModels.swift */,
+				1B061E9E50CA334FF1877814 /* TradeAnalytics.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -187,6 +214,22 @@
 			path = Trades;
 			sourceTree = "<group>";
 		};
+		8421EC95B7496A593CA1F77F /* Statements */ = {
+			isa = PBXGroup;
+			children = (
+				AC83EEDBAF3001686733F854 /* StatementDetailView.swift */,
+			);
+			path = Statements;
+			sourceTree = "<group>";
+		};
+		8DDAE8277095B92C00421BF5 /* Charts */ = {
+			isa = PBXGroup;
+			children = (
+				29BB4EC1AA4754A45D0746BC /* FilingCharts.swift */,
+			);
+			path = Charts;
+			sourceTree = "<group>";
+		};
 		91285586724E4383B6C7EC3E /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
@@ -207,10 +250,19 @@
 			isa = PBXGroup;
 			children = (
 				4017D38E49D6529E2422C4B6 /* Assets.xcassets */,
+				E4D3FAD6C6EA10A94951ED41 /* PrivacyInfo.xcprivacy */,
 				DEF0DAD281FEF5B92CF0F73B /* Data */,
 				FB6ACE4C1B2F8467AE7B6CF1 /* Localizable.strings */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		C13B39C3DF29AE1B26FF1AE0 /* Portfolios */ = {
+			isa = PBXGroup;
+			children = (
+				4ACE37E0FC2F8FF0052CA924 /* ReferencePortfolioView.swift */,
+			);
+			path = Portfolios;
 			sourceTree = "<group>";
 		};
 		CA1CA2EBF3542D25B05049F5 /* Politicians */ = {
@@ -224,6 +276,7 @@
 		CAEAB844D433278BAA7BB56A /* Members */ = {
 			isa = PBXGroup;
 			children = (
+				F60DD4E785556368AE429838 /* DeclaredInterestsView.swift */,
 				35633CD95273B2EC6622F523 /* MembersView.swift */,
 			);
 			path = Members;
@@ -259,6 +312,7 @@
 			isa = PBXGroup;
 			children = (
 				9C5E9D9825D80F73ACA27B73 /* RootTabView.swift */,
+				8DDAE8277095B92C00421BF5 /* Charts */,
 				F008B37D62B353A8CFF5CE89 /* Components */,
 				5A7B0E88DDC46DA146800AA9 /* Dashboard */,
 				2324DA3BF7FE89589D7EB850 /* Home */,
@@ -266,7 +320,10 @@
 				CAEAB844D433278BAA7BB56A /* Members */,
 				91285586724E4383B6C7EC3E /* Onboarding */,
 				CA1CA2EBF3542D25B05049F5 /* Politicians */,
+				C13B39C3DF29AE1B26FF1AE0 /* Portfolios */,
 				711D9BF122A6AA0586F6BA0B /* Settings */,
+				8421EC95B7496A593CA1F77F /* Statements */,
+				58DE2FEFDF470DE3CA95AD77 /* Stocks */,
 				7FE45A7840E0B174F55CA905 /* Trades */,
 			);
 			path = Views;
@@ -339,6 +396,7 @@
 				"en-CA",
 				es,
 				fr,
+				"fr-CA",
 			);
 			mainGroup = 7C58F486350249D0CC702828;
 			minimizedProjectReferenceProxies = 1;
@@ -360,6 +418,7 @@
 			files = (
 				DA31A93D02C3FB24A6487EE2 /* Assets.xcassets in Resources */,
 				24362DA2FBC99183C34C9C58 /* Localizable.strings in Resources */,
+				149A1C8C531EEE5635DD732F /* PrivacyInfo.xcprivacy in Resources */,
 				8D62D55ABB4C08D3F7435DE6 /* current-politicians.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -375,7 +434,9 @@
 				4835E085D2DAB2983FC088C1 /* CongressRosterLoader.swift in Sources */,
 				5E5A4F00B79474D6DFD88389 /* ConsigliereAPIProvider.swift in Sources */,
 				54EE4706875A4913E1CBF0AC /* ConsigliereApp.swift in Sources */,
+				0577F132AB9EC5E95DF56CCE /* DeclaredInterestsView.swift in Sources */,
 				3BB35364DF9A1136CAC31FF9 /* EventDetailView.swift in Sources */,
+				2D8F349BF30CB8C65CAA9FDA /* FilingCharts.swift in Sources */,
 				F1D82B2729304B75219D1B47 /* FilingDetailView.swift in Sources */,
 				04AF15D5739A997FEFF4056E /* HomeView.swift in Sources */,
 				AE09C70CE0F531F6185F747E /* InstrumentDetailView.swift in Sources */,
@@ -386,10 +447,15 @@
 				7C886124334F329EB9684577 /* OnboardingView.swift in Sources */,
 				D51BA1250FAF078CA707CCED /* PoliticianModels.swift in Sources */,
 				A526CE691921FC240101AA91 /* PoliticianProfileView.swift in Sources */,
+				09D539D5427B68181B126E12 /* ReferencePortfolioView.swift in Sources */,
+				7D2CB8DD418FF96E6E02D575 /* ResearchModels.swift in Sources */,
 				463CC1C1EA93E8A88F340234 /* RootTabView.swift in Sources */,
 				542C9106D92012908E39249D /* SettingsView.swift in Sources */,
 				AC6C2D6FA7E5C34CB5A22D7B /* SharedComponents.swift in Sources */,
+				C945DFF21621C336DE217629 /* StatementDetailView.swift in Sources */,
+				19CCD00DC844D3967EC202A5 /* StockDetailView.swift in Sources */,
 				5550DB4B803463BA362150A2 /* Theme.swift in Sources */,
+				2CE2EBD2D5BFC4D59F0CE5A0 /* TradeAnalytics.swift in Sources */,
 				F64B2485BF004BB857B7DA87 /* TradeDetailView.swift in Sources */,
 				6CDE68EDF1D32DE38CC1DB2B /* TradesView.swift in Sources */,
 			);
@@ -424,6 +490,7 @@
 				54ECC6CD9213A025AC5C1347 /* en-CA */,
 				5B936D18342577E5C2CD18D4 /* es */,
 				16A9B2D2D548BD2CE264ECAC /* fr */,
+				C1CBDDAFEA5342460F62E326 /* fr-CA */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";

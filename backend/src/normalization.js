@@ -66,3 +66,24 @@ function validDateOnly(value) {
     && date.getUTCMonth() === month - 1
     && date.getUTCDate() === day;
 }
+
+// D1 counts statements, including each statement inside batch(), toward invocation limits.
+// Import rows through json_each with one binding per bounded chunk instead of one query per row.
+export function bulkInsertStatements(db, table, columns, rows, conflict = "") {
+  const statements = [];
+  let chunk = [], bytes = 0;
+  const flush = () => {
+    if (!chunk.length) return;
+    const values = columns.map((_, index) => `json_extract(value, '$[${index}]')`).join(",");
+    statements.push(db.prepare(`INSERT INTO ${table}(${columns.join(",")}) SELECT ${values} FROM json_each(?) WHERE 1 ${conflict}`).bind(JSON.stringify(chunk)));
+    chunk = []; bytes = 0;
+  };
+  for (const row of rows) {
+    const size = new TextEncoder().encode(JSON.stringify(row)).length;
+    if (size > 900_000) throw new Error("Source record exceeded the import size limit");
+    if (chunk.length >= 2000 || bytes + size > 900_000) flush();
+    chunk.push(row); bytes += size;
+  }
+  flush();
+  return statements;
+}

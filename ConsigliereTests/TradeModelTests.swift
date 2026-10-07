@@ -89,4 +89,34 @@ final class TradeModelTests: XCTestCase {
         )
         XCTAssertEqual(trade.owner, .spouse)
     }
+    func testHomeCountsFilingsOnceAndUsesFirstObservedDate() {
+        let records = [trade("AAPL", source: "https://example.com/a.pdf", observed: "2026-09-01"),
+                       trade("MSFT", source: "https://example.com/a.pdf", observed: "2026-09-01")]
+        let summary = HomeSummary(trades: records, previousVisit: day("2026-08-31"), followed: ["T000001"], now: day("2026-10-06"))
+        XCTAssertEqual(summary.filings, 1)
+        XCTAssertEqual(summary.following, 1)
+        XCTAssertEqual(HomeSummary(trades: records, previousVisit: day("2026-09-02"), followed: []).filings, 0)
+    }
+
+    func testNotableRanksByBandAndAvoidsLastWeeksMember() {
+        let now = day("2026-08-21")
+        let small = trade("AAPL")
+        let large = trade("MSFT", amount: "$1,000,001 - $5,000,000")
+        XCTAssertEqual(TradeAnalytics.notable([small, large], followed: [], previousMember: nil, now: now)?.symbol, "MSFT")
+        XCTAssertEqual(TradeAnalytics.notable([large], followed: [], previousMember: "T000001", now: now)?.symbol, "MSFT")
+        XCTAssertTrue(TradeFilter(minimumBand: 1_000_000).matches(large, now: now))
+        XCTAssertFalse(TradeFilter(minimumBand: 1_000_000).matches(small, now: now))
+    }
+
+    func testDelayCountsOnePointPerReportAndActivityCountsTransactions() {
+        let records = [trade("AAPL"), trade("MSFT")]
+        XCTAssertEqual(TradeAnalytics.delays(records).count, 1)
+        XCTAssertEqual(TradeAnalytics.activityHistogram(records, now: day("2026-08-21")).reduce(0) { $0 + $1.count }, 2)
+        XCTAssertEqual(TradeAnalytics.weeklyPulse(records, now: day("2026-08-21")).last?.count, 1)
+        XCTAssertNil(TradeAnalytics.medianReportingDelay([]))
+        XCTAssertEqual(TradeAnalytics.medianReportingDelay(TradeAnalytics.delays([records[0]])), 19)
+        let nextReport = trade("NVDA", filed: "2026-08-21", source: "https://example.com/b.pdf")
+        XCTAssertEqual(TradeAnalytics.medianReportingDelay(TradeAnalytics.delays(records + [nextReport])), 19.5)
+    }
+
 }

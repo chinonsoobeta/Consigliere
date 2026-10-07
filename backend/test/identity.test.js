@@ -7,16 +7,16 @@ const resolve = createResolver(roster);
 
 test("matches filers by two-letter state codes for every state, not a partial list", () => {
   // Production filers that were dropped because their states were missing from the old lookup.
-  assert.equal(resolve({ name: "April McClain Delaney", chamber: "house", state: "MD", district: 6 })?.id, "M001232");
-  assert.equal(resolve({ name: "Kevin Hern", chamber: "house", state: "OK", district: 1 })?.id, "H001082");
-  assert.equal(resolve({ name: "Kelly Louise Morrison", chamber: "house", state: "MN", district: 3 })?.id, "M001234");
+  assert.equal(resolve({ name: "April McClain Delaney", chamber: "house", state: "MD", district: 6 })?.id, "us:M001232");
+  assert.equal(resolve({ name: "Kevin Hern", chamber: "house", state: "OK", district: 1 })?.id, "us:H001082");
+  assert.equal(resolve({ name: "Kelly Louise Morrison", chamber: "house", state: "MN", district: 3 })?.id, "us:M001234");
   for (const person of roster) assert.ok(stateCode(person.state), `missing code for ${person.state}`);
 });
 
 test("treats district as a tie-breaker because providers lag redistricting", () => {
   // The provider still reports GA-6; the member now represents GA-7.
   const match = resolve({ name: "Richard Dean Dr McCormick", chamber: "house", state: "GA", district: 6 });
-  assert.equal(match?.id, "M001218");
+  assert.equal(match?.id, "us:M001218");
 });
 
 test("chamber and state remain hard constraints", () => {

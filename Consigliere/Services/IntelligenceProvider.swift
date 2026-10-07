@@ -1,6 +1,14 @@
 import Foundation
 
 protocol IntelligenceProvider: Sendable {
+    func members(country: Country) async throws -> [Politician]
+    func interests(country: Country, memberID: String?, ticker: String?) async throws -> [DeclaredInterest]
+    func portfolioGroups() async throws -> [PortfolioGroup]
+    func portfolio(id: String, ownOnly: Bool) async throws -> ReferencePortfolio
+    func portfolioChanges(id: String, ownOnly: Bool) async throws -> [ReferenceChange]
+    func statements(ticker: String?) async throws -> [PresidentialStatement]
+    func statementDetail(id: String, politicians: [Politician]) async throws -> StatementDetail
+    func reportTag(statementID: String, tagID: String, reason: String) async throws
     func snapshot() async throws -> IntelligenceSnapshot
     func disclosures(query: DisclosureQuery, politicians: [Politician]) async throws -> DisclosurePage
 }
@@ -10,6 +18,7 @@ struct DisclosureQuery: Sendable {
         case transaction, filed
     }
 
+    let ticker: String?
     let politicianID: String?
     let representative: String?
     let chamber: Chamber?
@@ -20,6 +29,7 @@ struct DisclosureQuery: Sendable {
     let cursor: DisclosureCursor?
 
     init(
+        ticker: String? = nil,
         politicianID: String? = nil,
         representative: String? = nil,
         chamber: Chamber? = nil,
@@ -29,6 +39,7 @@ struct DisclosureQuery: Sendable {
         limit: Int = 100,
         cursor: DisclosureCursor? = nil
     ) {
+        self.ticker = ticker
         self.politicianID = politicianID
         self.representative = representative
         self.chamber = chamber
@@ -69,4 +80,15 @@ struct UnconfiguredIntelligenceProvider: IntelligenceProvider {
     func disclosures(query: DisclosureQuery, politicians: [Politician]) async throws -> DisclosurePage {
         throw LiveProviderError.missingBaseURL
     }
+}
+
+extension IntelligenceProvider {
+    func portfolioGroups() async throws -> [PortfolioGroup] { throw LiveProviderError.missingBaseURL }
+    func members(country: Country) async throws -> [Politician] { throw LiveProviderError.missingBaseURL }
+    func interests(country: Country, memberID: String?, ticker: String?) async throws -> [DeclaredInterest] { throw LiveProviderError.missingBaseURL }
+    func portfolio(id: String, ownOnly: Bool) async throws -> ReferencePortfolio { throw LiveProviderError.missingBaseURL }
+    func portfolioChanges(id: String, ownOnly: Bool) async throws -> [ReferenceChange] { throw LiveProviderError.missingBaseURL }
+    func statements(ticker: String?) async throws -> [PresidentialStatement] { throw LiveProviderError.missingBaseURL }
+    func statementDetail(id: String, politicians: [Politician]) async throws -> StatementDetail { throw LiveProviderError.missingBaseURL }
+    func reportTag(statementID: String, tagID: String, reason: String) async throws { throw LiveProviderError.missingBaseURL }
 }

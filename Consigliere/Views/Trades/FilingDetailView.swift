@@ -28,6 +28,11 @@ struct FilingDetailView: View {
             } footer: {
                 if filing.isLate { Text("trade.late.footer") }
             }
+            Section {
+                ForEach(Array(Set(filing.trades.map(\.symbol).filter { !$0.isEmpty })).sorted(), id: \.self) { symbol in
+                    NavigationLink(value: StockRoute(symbol: symbol)) { Text("stock.open \(symbol)") }
+                }
+            }
             Section("filing.trades") {
                 ForEach(filing.bySize) { trade in
                     NavigationLink(value: trade) { TradeRow(trade: trade, showsMember: false) }
@@ -44,6 +49,7 @@ struct FilingDetailView: View {
 }
 
 struct MemberHeaderRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let politician: Politician
     var avatarSize: CGFloat = 48
 
@@ -52,11 +58,15 @@ struct MemberHeaderRow: View {
             PoliticianAvatar(politician: politician, size: avatarSize)
             VStack(alignment: .leading, spacing: 4) {
                 Text(verbatim: politician.name).font(.headline)
-                HStack(spacing: 6) {
+                let metadataLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                    : AnyLayout(HStackLayout(spacing: 6))
+                metadataLayout {
                     Text(verbatim: politician.shortLabel).font(.caption.weight(.semibold)).foregroundStyle(politician.partyColor)
                     ChamberTag(chamber: politician.chamber)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 2)
     }

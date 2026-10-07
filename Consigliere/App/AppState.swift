@@ -2,10 +2,8 @@ import SwiftUI
 
 @MainActor
 final class AppState: ObservableObject {
-    nonisolated private static let maxDisclosurePages = 20
     private static let staleSourceInterval: TimeInterval = 36 * 60 * 60
     private static let latestWindowDays = 90
-    private static let latestPages = 2
     static let disclosureProviders = ["apify", "house-ptr", "official-disclosures"]
 
     @Published private(set) var instruments: [MarketInstrument] = []
@@ -23,12 +21,18 @@ final class AppState: ObservableObject {
     @Published private(set) var disclosureLoadError: String?
     @Published private(set) var loadingPoliticianIDs: Set<String> = []
     @Published private(set) var hasAttemptedLoad = false
+    @Published private(set) var statements: [PresidentialStatement] = []
+    @Published var selectedCountry: Country = .us
+    @Published private(set) var countryLoadError: String?
+    @Published var tradeFilter = TradeFilter()
+    @Published private(set) var latestLoadError: String?
     @Published var isLoading = false
     @Published var selectedRegion: MarketRegion = .northAmerica
 
     @AppStorage("appearance") private var storedAppearance = Appearance.system.rawValue
     @AppStorage("language") private var storedLanguage = AppLanguage.usEnglish.rawValue
     @AppStorage("watchlist") private var storedWatchlist = "SPY,QQQ,DIA"
+    @AppStorage("homeCountries") private var storedHomeCountries = "us"
     @AppStorage("following") private var storedFollowing = ""
     @AppStorage("lastVisit") private var storedLastVisit: Double = 0
 
@@ -70,7 +74,7 @@ final class AppState: ObservableObject {
     }
 
     var followedIDs: Set<String> {
-        Set(storedFollowing.split(separator: ",").map(String.init))
+        Set(storedFollowing.split(separator: ",").map { $0.contains(":") ? String($0) : "us:" + $0 })
     }
 
     var followedPoliticians: [Politician] {
@@ -130,7 +134,7 @@ final class AppState: ObservableObject {
     }
 
     func politician(id: String?) -> Politician? {
-        id.flatMap { politiciansByID[$0] }
+        id.flatMap { politiciansByID[$0] ?? politiciansByID["us:" + $0] }
     }
 
     func load(force: Bool = false) async {
@@ -147,9 +151,9 @@ final class AppState: ObservableObject {
                 if $0.rankingScore == $1.rankingScore { return $0.publishedAt > $1.publishedAt }
                 return $0.rankingScore > $1.rankingScore
             }
-            setPoliticians(snapshot.politicians)
+            setPoliticians(snapshot.politicians + politicians.filter { $0.nation != .us })
             politicianSummaries = Dictionary(
-                snapshot.politicianSummaries.map { ($0.politicianID, $0) },
+                snapshot.politicianSummaries.map { ($0.politicianID.contains(":") ? $0.politicianID : "us:" + $0.politicianID, $0) },
                 uniquingKeysWith: { current, _ in current }
             )
             disclosures = snapshot.disclosures
@@ -158,7 +162,8 @@ final class AppState: ObservableObject {
             unmatchedFilers = snapshot.unmatchedFilers
             pendingFilings = snapshot.pendingFilings
             hasLoaded = true
-            await loadLatest(fallback: snapshot.disclosures)
+            await loadLatest()
+            statements = (try? await providerFactory().statements(ticker: nil)) ?? []
             storedLastVisit = Date.now.timeIntervalSince1970
         } catch {
             disclosureLoadError = error.localizedDescription
@@ -175,23 +180,45 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Loads the newest filings by filing date. The snapshot is ranked by research priority, so it
-    /// is only a fallback when the dated feed cannot be fetched.
-    private func loadLatest(fallback: [DisclosureTrade]) async {
+    /// Loads the newest filings by filing date, separately from the ranked snapshot.
+    private func loadLatest() async {
         let from = DisclosureDates.calendar.date(byAdding: .day, value: -Self.latestWindowDays, to: .now)
         do {
-            let fetched = try await fetchDisclosures(
-                DisclosureQuery(from: from, dateBasis: .filed, limit: 500),
-                maxPages: Self.latestPages
-            )
-            latestTrades = fetched.isEmpty ? fallback : fetched
+            let fetched = try await fetchDisclosures(DisclosureQuery(from: from, dateBasis: .filed, limit: 500))
+            latestTrades = fetched
+            latestLoadError = nil
         } catch {
-            latestTrades = fallback
+            latestTrades = []
+            latestLoadError = error.localizedDescription
         }
         let known = Set(disclosures.map(\.id))
         let additions = latestTrades.filter { !known.contains($0.id) }
         if !additions.isEmpty { disclosures.append(contentsOf: additions) }
     }
+
+    var homeCountries: Set<Country> {
+        get { Set(storedHomeCountries.split(separator: ",").compactMap { Country(rawValue: String($0)) }) }
+        set { storedHomeCountries = newValue.map(\.rawValue).sorted().joined(separator: ","); objectWillChange.send() }
+    }
+    func loadCountry(_ country: Country) async {
+        countryLoadError = nil
+        guard country != .us else { return }
+        do {
+            let members = try await providerFactory().members(country: country)
+            setPoliticians(politicians.filter { $0.nation != country } + members)
+        } catch { countryLoadError = error.localizedDescription }
+    }
+    func loadInterests(country: Country, memberID: String? = nil, ticker: String? = nil) async throws -> [DeclaredInterest] {
+        try await providerFactory().interests(country: country, memberID: memberID, ticker: ticker)
+    }
+
+    func loadPortfolioGroups() async throws -> [PortfolioGroup] { try await providerFactory().portfolioGroups() }
+    func loadPortfolio(id: String, ownOnly: Bool) async throws -> ReferencePortfolio { try await providerFactory().portfolio(id: id, ownOnly: ownOnly) }
+    func loadPortfolioChanges(id: String, ownOnly: Bool) async throws -> [ReferenceChange] { try await providerFactory().portfolioChanges(id: id, ownOnly: ownOnly) }
+    func loadStatements(ticker: String?) async throws -> [PresidentialStatement] { try await providerFactory().statements(ticker: ticker) }
+    func loadStatementDetail(id: String) async throws -> StatementDetail { try await providerFactory().statementDetail(id: id, politicians: politicians) }
+    func reportTag(statementID: String, tagID: String, reason: String) async throws { try await providerFactory().reportTag(statementID: statementID, tagID: tagID, reason: reason) }
+    func loadStockTrades(symbol: String) async throws -> [DisclosureTrade] { try await fetchDisclosures(DisclosureQuery(ticker: symbol, limit: 500)) }
 
     func toggleWatchlist(_ instrument: MarketInstrument) {
         var symbols = watchlist
@@ -241,14 +268,15 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func fetchDisclosures(_ query: DisclosureQuery, maxPages: Int = AppState.maxDisclosurePages) async throws -> [DisclosureTrade] {
+    private func fetchDisclosures(_ query: DisclosureQuery) async throws -> [DisclosureTrade] {
         let provider = providerFactory()
         var cursor: DisclosureCursor?
         var fetched: [DisclosureTrade] = []
-        var pages = 0
+        var seenCursors = Set<DisclosureCursor>()
         repeat {
             let page = try await provider.disclosures(
                 query: DisclosureQuery(
+                    ticker: query.ticker,
                     politicianID: query.politicianID,
                     representative: query.representative,
                     chamber: query.chamber,
@@ -262,8 +290,8 @@ final class AppState: ObservableObject {
             )
             fetched.append(contentsOf: page.disclosures)
             cursor = page.nextCursor
-            pages += 1
-        } while cursor != nil && pages < maxPages
+            if let cursor, !seenCursors.insert(cursor).inserted { throw ConsigliereAPIClient.ClientError.invalidResponse }
+        } while cursor != nil
         return fetched
     }
 
@@ -338,6 +366,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case canadianEnglish = "en-CA"
     case spanish = "es"
     case french = "fr"
+    case canadianFrench = "fr-CA"
 
     var id: String { rawValue }
     var locale: Locale { Locale(identifier: rawValue) }
@@ -347,6 +376,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .canadianEnglish: "English (Canada)"
         case .spanish: "Español"
         case .french: "Français"
+        case .canadianFrench: "Français (Canada)"
         }
     }
 }

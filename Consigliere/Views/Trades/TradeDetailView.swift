@@ -22,6 +22,7 @@ struct TradeDetailView: View {
                     Text(verbatim: trade.representative).font(.headline)
                 }
             }
+            if !trade.symbol.isEmpty { Section { NavigationLink(value: StockRoute(symbol: trade.symbol)) { Text("stock.open \(trade.symbol)") } } }
             Section {
                 LabeledContent("trade.amount") { Text(verbatim: trade.amountRange) }
                 LabeledContent("trade.owner") { Text(trade.owner.label) }

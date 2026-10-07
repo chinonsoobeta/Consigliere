@@ -13,20 +13,31 @@ Consigliere is an iOS political-market intelligence publication for self-directe
 
 ## Architecture
 
-The iOS app consumes two normalized endpoints from the Cloudflare Worker:
+The iOS app consumes normalized endpoints from the Cloudflare Worker:
 
 ```text
 GET /v1/snapshot       ranked feed, source health, per-politician summaries, pending filings
 GET /v1/disclosures    paginated history (politician_id, representative, ticker, chamber, from/to)
+GET /v1/portfolios/{id}  estimated member, Congress and committee holdings
+GET /v1/portfolios/{id}/changes  source-linked position changes
+GET /v1/statements     presidential actions, briefings and remarks with quoted tags
+GET /v1/statements/{id}  statement, related holdings and trades
+GET /v1/members?country=uk  UK roster
+GET /v1/interests?country=uk  declared interests, optionally by member_id or ticker
+POST /v1/statement-corrections  queues a tag report for human review
 ```
 
-The app opens on **Latest** (recent filings, followed members, largest and late trades), with **Trades**, **Members**, and **Settings** tabs; **Markets** appears once licensed market data is connected. See [docs/architecture.md](docs/architecture.md#app-structure).
+The app opens on **Latest** (counts since the previous visit, followed filings, a rules-selected notable trade, a weekly pulse, and compact recent lists), with **Trades**, **Members**, and **Settings** tabs; **Markets** appears once licensed market data is connected. See [docs/architecture.md](docs/architecture.md#app-structure).
 
 The Worker stores normalized records and raw provider payloads in D1. Its adapters cover:
 
 - Official House filing metadata from the Clerk's annual ZIP index (there is no direct Senate eFD collector; Senate transactions come only from Apify)
 - House transactions read directly from the Clerk's electronically filed PTR PDFs (`backend/src/house-ptr.js`, provider `house-ptr`); scanned paper reports are not read yet
 - Apify actor `pink_comic/congress-stock-trading-disclosures` for Senate transactions, earlier House years, and House reports the PDF reader has not replaced
+- House annual Schedule A assets used as year-end portfolio anchors when the report validates; unreadable reports keep the trade-only estimate
+- UK Commons and Lords declared interests, with unmatched organisations preserved
+- White House action, briefing and remarks feeds, plus Federal Register confirmations and document metadata
+- SEC issuer/SIC metadata with a declared contact, and bounded OpenFIGI company matching
 - Licensed Truth Social monitoring
 - Licensed Twelve Data market data with attribution
 
@@ -60,7 +71,7 @@ npx wrangler d1 migrations apply consigliere-data --remote
 npx wrangler deploy
 ```
 
-Three crons run: `0 */12 * * *` syncs live sources, re-ranks the last 60 days, and matches new filers to politicians; `15 * * * *` processes one queued historical backfill job; `45 * * * *` reads up to 30 unread House PTR PDFs. Backfill jobs whose provider is skipped or unconfigured are deferred rather than failed.
+Three crons run: `0 */12 * * *` syncs live sources, reads up to three annual reports, re-ranks the last 60 days, matches new filers and rebuilds reference portfolios; `15 * * * *` processes one queued historical backfill job and advances bounded security matching; `45 * * * *` reads up to 30 unread House PTR PDFs and three queued annual reports. The annual index is the reporting year’s archive, not the year in which the report was filed. Routine House Apify collection continues until every indexed current-year report is extracted, empty or paper; thereafter routine runs request Senate only. Explicit historical backfills remain available. Backfill jobs whose provider is skipped or unconfigured are deferred rather than failed.
 
 `HOUSE_PTR_MODE` in `wrangler.toml` decides what the House PDF reader's rows do. `shadow` stores them without serving them; `live` serves them and holds back Apify's rows for each report the reader has replaced; `off` stops reading PDFs. Every run reconciles stored rows with the current mode, so switching back needs only a config change and a deploy. Reports that do not read cleanly are marked `needs-review` and keep their Apify rows. To compare the reader with whatever the production API serves:
 
@@ -82,6 +93,12 @@ The congressional roster is bundled at `Consigliere/Resources/Data/current-polit
 ## Publishing and data rights
 
 Consigliere is positioned as a public-interest news and research publisher. Public release still requires legal review confirming that storage, analysis, citation, and mobile display comply with the House/Senate disclosure rules and every market/social-data agreement. Free personal-use API plans are not assumed to permit redistribution.
+
+## Build plan and release status
+
+See [the build record](docs/build-status.md) for implemented features, exact checks and remaining gates, and [the permission-request drafts](docs/permission-requests.md) for Canada/Australia access requests and a legal-review brief. This revision has been tested locally; it has not been deployed. Apply migration `0008_research.sql` before deploying it. The migration namespaces existing US member IDs and preserves disclosure IDs and source payloads.
+
+The public-source sync exceeds the free Worker’s 50-subrequest/query limits; verify the deployment’s Worker/D1 plan before release. The configured collector limits bound each run, and bulk JSON writes avoid one SQL query per member. No account plan or billing was changed during this build.
 
 ## Disclaimer
 

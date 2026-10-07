@@ -6,6 +6,21 @@ on:
   pull_request:
 
 jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
   build-and-test:
     runs-on: macos-15
     steps:
@@ -16,4 +31,3 @@ jobs:
         run: xcodebuild -project Consigliere.xcodeproj -scheme Consigliere -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' CODE_SIGNING_ALLOWED=NO build
       - name: Test
         run: xcodebuild -project Consigliere.xcodeproj -scheme Consigliere -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' CODE_SIGNING_ALLOWED=NO test
-

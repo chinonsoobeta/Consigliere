@@ -1,205 +1,151 @@
 import SwiftUI
 
-/// The landing page: what was filed recently, what stands out, and who is trading.
 struct HomeView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var selectedTab: RootTab
+    @AppStorage("notableWeek") private var storedWeek = ""
+    @AppStorage("notableMember") private var storedMember = ""
+    @AppStorage("previousNotableMember") private var previousMember = ""
+    @State private var notable: DisclosureTrade?
 
-    private static let filingLimit = 6
-    private static let sectionLimit = 5
-
-    private var followedFilings: [TradeFiling] {
-        let ids = appState.followedIDs
-        return Array(appState.latestFilings.filter { $0.politicianID.map(ids.contains) ?? false }.prefix(3))
-    }
-
-    /// Filings already shown under Following are not repeated.
-    private var newFilings: [TradeFiling] {
-        let shown = Set(followedFilings.map(\.id))
-        return Array(appState.latestFilings.filter { !shown.contains($0.id) }.prefix(Self.filingLimit))
-    }
-
-    private var biggestTrades: [DisclosureTrade] {
-        Array(appState.latestTrades.sorted { $0.amount.sortValue > $1.amount.sortValue }.prefix(Self.sectionLimit))
-    }
-
-    /// One row per member, so a batch of late reports filed the same day does not crowd the list.
-    private var lateFilings: [TradeFiling] {
-        var seen = Set<String>()
-        return Array(appState.latestFilings
-            .filter { $0.isLate && seen.insert($0.politicianID ?? $0.representative).inserted }
-            .prefix(Self.sectionLimit))
-    }
+    private var summary: HomeSummary { HomeSummary(trades: appState.latestTrades, previousVisit: appState.previousVisit, followed: appState.followedIDs) }
+    private var followedFilings: [TradeFiling] { Array(appState.latestFilings.filter { appState.followedIDs.contains($0.politicianID ?? "") }.prefix(5)) }
+    private var pulse: [WeeklyBucket] { TradeAnalytics.weeklyPulse(appState.latestTrades) }
+    private var visitFilter: TradeFilter { TradeFilter(filedWithinDays: appState.previousVisit == nil ? 7 : nil, observedAfter: appState.previousVisit) }
 
     var body: some View {
         NavigationStack {
             List {
-                if appState.latestFilings.isEmpty {
-                    Section {
-                        SourceAwareEmptyView(
-                            providers: AppState.disclosureProviders,
-                            emptyTitle: "home.empty",
-                            emptyMessage: "home.empty.body"
-                        )
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                } else {
-                    if !followedFilings.isEmpty { followingSection }
-                    newFilingsSection
-                    biggestSection
-                    if !appState.mostActive.isEmpty { mostActiveSection }
-                    if !lateFilings.isEmpty { lateSection }
-                    if !appState.posts.isEmpty { postsSection }
-                    if appState.marketsEnabled && !appState.instruments.isEmpty { marketsSection }
+                if appState.disclosureSourcesDelayed {
+                    NavigationLink { DataSourcesView() } label: { Label("home.delayed", systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange) }
                 }
-                footer
+                if let error = appState.latestLoadError ?? appState.disclosureLoadError {
+                    Text(verbatim: error).foregroundStyle(.orange)
+                }
+                if appState.homeCountries.contains(.us) {
+                summarySection
+                followingSection
+                if let notable {
+                    Section("home.notableWeek") {
+                        NavigationLink(value: notable) { TradeRow(trade: notable) }
+                        ViewThatFits(in: .horizontal) {
+                            HStack { notableReasons(notable) }
+                            VStack(alignment: .leading) { notableReasons(notable) }
+                        }.font(.caption)
+                    }
+                }
+                Section("home.pulse") {
+                    FilingCharts.weekly(pulse, locale: appState.language.locale)
+                    if TradeAnalytics.busierThanUsual(pulse) { Text("home.busier").font(.caption).foregroundStyle(ConsigliereTheme.accent) }
+                    Button("home.seeAllTrades") { open(TradeFilter(filedWithinDays: 84)) }
+                }
+                Section("home.newFilings") {
+                    ForEach(appState.latestFilings.filter { !Set(followedFilings.map(\.id)).contains($0.id) }.prefix(5)) { filing in
+                        NavigationLink(value: filing) { FilingRow(filing: filing) }
+                    }
+                    Button("home.seeAllTrades") { open(TradeFilter()) }
+                }
+                Section("home.late") {
+                    ForEach(appState.latestFilings.filter(\.isLate).prefix(3)) { filing in
+                        NavigationLink(value: filing) { FilingRow(filing: filing, emphasizesLag: true) }
+                    }
+                    Button("home.seeAllTrades") { open(TradeFilter(lateOnly: true)) }
+                }
+                Section("home.mostActive") {
+                    ScrollView(.horizontal) {
+                        HStack(alignment: .top, spacing: 14) {
+                            ForEach(appState.mostActive.prefix(5), id: \.politician.id) { entry in
+                                NavigationLink(value: entry.politician) {
+                                    VStack(spacing: 6) {
+                                        PoliticianAvatar(politician: entry.politician, size: 48)
+                                        Text(verbatim: entry.politician.name).font(.caption).multilineTextAlignment(.center)
+                                    }.frame(width: 88)
+                                }
+                            }
+                        }
+                    }
+                    Button("home.seeAllTrades") { open(TradeFilter(members: Set(appState.mostActive.prefix(5).map { $0.politician.id }))) }
+                }
+                if !appState.statements.isEmpty {
+                    Section("statement.home") {
+                        ForEach(appState.statements.prefix(3)) { statement in NavigationLink(value: statement) { Text(verbatim: statement.title) } }
+                    }
+                }
+                Section { NavigationLink("portfolio.congress") { ReferencePortfolioView(portfolioID: "congress") } }
+                }
+                ForEach(Country.allCases.filter { $0 != .us && appState.homeCountries.contains($0) }) { country in
+                    Section { NavigationLink { DeclaredInterestsView(country: country) } label: { Text(country.label) + Text(" · ") + Text("interests.title") } }
+                }
+                Section { NavigationLink("home.aboutData") { MethodologyView() } } footer: { Text("home.footer") }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("home.title")
             .refreshable { await appState.load(force: true) }
             .consigliereDestinations()
+            .task(id: appState.latestTrades) { chooseNotable() }
         }
     }
 
-    private var statusLine: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            let newCount = appState.newFilingsSinceLastVisit.count
-            if newCount > 0 {
-                Text("home.newSinceVisit \(newCount)").foregroundStyle(ConsigliereTheme.accent).fontWeight(.semibold)
-            }
-            if appState.disclosureSourcesDelayed {
-                NavigationLink { DataSourcesView() } label: {
-                    Label("home.delayed", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                }
-            } else if let lastSync = appState.lastDisclosureSync {
-                Text("home.checked \(lastSync, format: .relative(presentation: .named))")
-            }
+    private var summarySection: some View {
+        Section(appState.previousVisit == nil ? "home.thisWeek" : "home.sinceVisit") {
+            ViewThatFits(in: .horizontal) {
+                HStack { summaryButtons }
+                VStack(alignment: .leading) { summaryButtons }
+            }.buttonStyle(.bordered).buttonBorderShape(.roundedRectangle)
         }
-        .font(.footnote)
-        .textCase(nil)
+    }
+
+    @ViewBuilder private var summaryButtons: some View {
+        Button { open(visitFilter) } label: { Text("home.count.filings \(summary.filings)") }
+        Button { var filter = visitFilter; filter.members = appState.followedIDs; open(filter) } label: { Text("home.count.following \(summary.following)") }
+        Button { var filter = visitFilter; filter.minimumBand = 1_000_000; open(filter) } label: { Text("home.count.large \(summary.large)") }
+        Button { var filter = visitFilter; filter.lateOnly = true; open(filter) } label: { Text("home.count.late \(summary.late)") }
     }
 
     private var followingSection: some View {
-        Section {
-            ForEach(followedFilings) { filing in
-                NavigationLink(value: filing) { FilingRow(filing: filing) }
-            }
-        } header: {
-            VStack(alignment: .leading, spacing: 6) {
-                statusLine
-                Text("home.following")
-            }
-        }
-    }
-
-    private var newFilingsSection: some View {
-        Section {
-            ForEach(newFilings) { filing in
-                NavigationLink(value: filing) { FilingRow(filing: filing) }
-            }
-            Button("home.seeAllTrades") { selectedTab = .trades }
-        } header: {
-            // The status line heads whichever section comes first.
-            VStack(alignment: .leading, spacing: 6) {
-                if followedFilings.isEmpty { statusLine }
-                Text("home.newFilings")
-            }
-        }
-    }
-
-    private var biggestSection: some View {
-        Section {
-            ForEach(biggestTrades) { trade in
-                NavigationLink(value: trade) { TradeRow(trade: trade) }
-            }
-        } header: {
-            Text("home.biggest")
-        } footer: {
-            Text("home.biggest.footer")
-        }
-    }
-
-    private var mostActiveSection: some View {
-        Section("home.mostActive") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 14) {
-                    ForEach(appState.mostActive.prefix(12), id: \.politician.id) { entry in
-                        NavigationLink(value: entry.politician) {
-                            ActiveMemberChip(politician: entry.politician, trades: entry.trades)
-                        }
-                        .buttonStyle(.plain)
-                    }
+        Section("home.following") {
+            if appState.followedIDs.isEmpty {
+                Text("home.followPrompt").foregroundStyle(.secondary)
+                ForEach(suggestedMembers) { member in
+                    Button { appState.toggleFollow(member) } label: { MemberHeaderRow(politician: member) }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+            } else if followedFilings.isEmpty {
+                Text("home.followEmpty").foregroundStyle(.secondary)
+            } else {
+                ForEach(followedFilings) { filing in NavigationLink(value: filing) { FilingRow(filing: filing) } }
             }
-            .listRowInsets(EdgeInsets())
+            Button("home.seeAllTrades") { open(TradeFilter(members: appState.followedIDs)) }.disabled(appState.followedIDs.isEmpty)
         }
     }
 
-    private var lateSection: some View {
-        Section {
-            ForEach(lateFilings) { filing in
-                NavigationLink(value: filing) { FilingRow(filing: filing, emphasizesLag: true) }
-            }
-        } header: {
-            Text("home.late")
-        } footer: {
-            Text("home.late.footer")
-        }
+    private var suggestedMembers: [Politician] {
+        let ranked = appState.mostActive.map(\.politician)
+        var picked: [Politician] = []
+        var groups = Set<String>()
+        for member in ranked where groups.insert("\(member.chamber.rawValue)|\(member.party)").inserted { picked.append(member) }
+        picked.append(contentsOf: ranked.filter { member in !picked.contains(where: { $0.id == member.id }) })
+        return Array(picked.prefix(5))
     }
 
-    private var postsSection: some View {
-        Section("home.posts") {
-            ForEach(appState.posts.prefix(3)) { post in
-                NavigationLink(value: post) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(verbatim: post.author).font(.subheadline.weight(.semibold))
-                        Text(verbatim: post.body).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
-                        EventDateText(event: post).font(.caption).foregroundStyle(.tertiary)
-                    }
-                }
-            }
-        }
+    @ViewBuilder private func notableReasons(_ trade: DisclosureTrade) -> some View {
+        Text("home.reason.largest")
+        if TradeAnalytics.committeeLink(trade) { Text("trade.highlight.committee") }
+        if trade.isOption { Text("trade.options") }
+        if trade.isLate { Text("home.reason.late") }
+        if appState.followedIDs.contains(trade.politicianID ?? "") { Text("profile.following") }
     }
 
-    private var marketsSection: some View {
-        Section("home.markets") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
-                    ForEach(appState.instruments.prefix(8)) { instrument in
-                        NavigationLink(value: instrument) { MarketCard(instrument: instrument) }.buttonStyle(.plain)
-                    }
-                }
-                .padding(12)
-            }
-            .listRowInsets(EdgeInsets())
-        }
-    }
+    private func open(_ filter: TradeFilter) { appState.tradeFilter = filter; selectedTab = .trades }
 
-    private var footer: some View {
-        Section {
-            NavigationLink("home.aboutData") { MethodologyView() }
-        } footer: {
-            Text("home.footer")
+    private func chooseNotable() {
+        let weekDate = TradeAnalytics.calendar.dateInterval(of: .weekOfYear, for: .now)!.start
+        let week = DisclosureDates.dayFormatter.string(from: weekDate)
+        if week != storedWeek {
+            let oldDate = DisclosureDates.day(storedWeek)
+            previousMember = oldDate.map { weekDate.timeIntervalSince($0) < 8 * 86_400 ? storedMember : "" } ?? ""
+            storedWeek = week
         }
-    }
-}
-
-private struct ActiveMemberChip: View {
-    let politician: Politician
-    let trades: Int
-
-    var body: some View {
-        VStack(spacing: 5) {
-            PoliticianAvatar(politician: politician, size: 56)
-            Text(verbatim: politician.name.split(separator: " ").last.map(String.init) ?? politician.name)
-                .font(.caption.weight(.semibold)).lineLimit(1)
-            Text(trades, format: .number).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-        }
-        .frame(width: 68)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("home.mostActive.a11y \(politician.name) \(trades)"))
+        notable = TradeAnalytics.notable(appState.latestTrades, followed: appState.followedIDs, previousMember: previousMember)
+        if let notable { storedMember = notable.politicianID ?? notable.representative }
     }
 }

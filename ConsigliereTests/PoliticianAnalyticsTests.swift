@@ -11,7 +11,7 @@ final class PoliticianAnalyticsTests: XCTestCase {
         let roster = try CongressRosterLoader.load()
 
         XCTAssertGreaterThan(roster.count, 500)
-        XCTAssertTrue(roster.contains { $0.id == "P000197" && $0.name.localizedCaseInsensitiveContains("Pelosi") })
+        XCTAssertTrue(roster.contains { $0.id == "us:P000197" && $0.name.localizedCaseInsensitiveContains("Pelosi") })
     }
 
     func testEventStudyComputesAbnormalReturn() {

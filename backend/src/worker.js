@@ -1,3 +1,6 @@
+import { syncHouseAnnual } from "./house-annual.js";
+import { syncUK, interestRoute, matchUnresolvedInterests } from "./interests.js";
+import { researchRoute, rebuildPortfolios, syncStatements, syncSecurityMetadata, syncCommittees, syncServiceDates } from "./research.js";
 import {
   collectApifyDisclosures, collectMarketData, collectOfficialFilings, collectTruthPosts, fetchHouseReport
 } from "./providers.js";
@@ -7,16 +10,22 @@ import {
 import {
   rankDisclosure, rankSocialPost, rescoreDisclosure, whyDisclosureMatters
 } from "./ranking.js";
-import { stableUUID } from "./normalization.js";
+import { stableUUID, bulkInsertStatements } from "./normalization.js";
 import { createResolver, houseStateDistrict, normalizePersonName, stateCode } from "./identity.js";
 import roster from "./roster.js";
 
 const EXPECTED_SOURCES = [
   ["official-disclosures", "Official House disclosure index"],
   ["house-ptr", "House reports read from the Clerk's PDFs"],
+  ["house-annual", "House annual asset reports"],
   ["apify", "Structured House and Senate disclosures"],
   ["truth-api", "Truth Social political monitoring"],
-  ["twelve-data", "Licensed market data"]
+  ["twelve-data", "Licensed market data"],
+  ["presidential-actions", "White House and Federal Register"],
+  ["securities", "SEC company and sector metadata"],
+  ["committees", "Congressional committee assignments"],
+  ["congress-terms", "Congressional service dates"],
+  ["uk-interests", "UK Parliament declared interests"]
 ];
 const MAX_INTERNAL_BODY_BYTES = 4096;
 const SYNC_LOCK_MS = 15 * 60_000;
@@ -32,7 +41,7 @@ const SNAPSHOT_RECENT_DAYS = 30;
 const RERANK_RECENT_DAYS = 60;
 const PENDING_FILING_DAYS = 45;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-const WORKER_VERSION = "2026-10-06-house-ptr-v1";
+const WORKER_VERSION = "2026-10-06-research-v1";
 const DISCLOSURE_COLUMNS = `
   id, politician_id, representative, ticker, asset_name, transaction_type, owner,
   amount_range, transaction_date, report_date, source_url, chamber, confidence,
@@ -43,6 +52,10 @@ const DISCLOSURE_COLUMNS = `
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const interest = await interestRoute(request, env);
+    if (interest) return interest;
+    const research = await researchRoute(request, env, mapDisclosure);
+    if (research) return research;
     if (request.method === "GET" && url.pathname === "/health") return health(env);
     if (request.method === "GET" && url.pathname === "/v1/snapshot") return snapshot(env);
     if (request.method === "GET" && url.pathname === "/v1/disclosures") return listDisclosures(url, env);
@@ -50,7 +63,15 @@ export default {
     if (request.method === "GET" && url.pathname === "/v1/source-filings") return listSourceFilings(url, env);
     if (request.method === "POST" && url.pathname === "/internal/sync") {
       if (!await authorized(request, env)) return json({ error: "unauthorized" }, 401);
-      return json(await syncAll(env));
+      return json(await runScheduled(env));
+    }
+    if (request.method === "GET" && url.pathname === "/internal/review") {
+      if (!await authorized(request, env)) return json({ error: "unauthorized" },401);
+      const [interests, corrections] = await Promise.all([
+        env.DB.prepare("SELECT id,organisation,candidate_matches,source_url FROM interest_records WHERE review_status='needs-review'").all(),
+        env.DB.prepare("SELECT * FROM statement_corrections WHERE status='pending'").all()
+      ]);
+      return json({ interests: interests.results, corrections: corrections.results });
     }
     if (request.method === "POST" && url.pathname === "/internal/rematch") {
       if (!await authorized(request, env)) return json({ error: "unauthorized" }, 401);
@@ -113,24 +134,35 @@ export default {
 
   async scheduled(controller, env, ctx) {
     const run = controller.cron === BACKFILL_CRON ? runBackfillSchedule
-      : controller.cron === HOUSE_PTR_CRON ? extractHouseReports
+      : controller.cron === HOUSE_PTR_CRON ? runHouseSchedule
       : runScheduled;
     ctx.waitUntil(run(env));
   }
 };
 
+async function runHouseSchedule(env) {
+  const transactions = await extractHouseReports(env);
+  const annuals = await withHealth(env,"house-annual","House annual asset reports",()=>syncHouseAnnual(env,{refreshIndex:false}));
+  if (annuals.recordsWritten) await rebuildPortfolios(env.DB);
+  return { transactions, annuals };
+}
+
 async function runScheduled(env) {
+  await syncRoster(env);
   const live = await syncAll(env);
   const rerank = await rerankRecentDisclosures(env);
   const rematch = await rematchDisclosures(env);
-  return { live, rerank, rematch };
+  const securityMatching = await withHealth(env, "security-matching", "Listed-security matching", () => matchUnresolvedInterests(env));
+  const portfolios = await rebuildPortfolios(env.DB);
+  return { ...live, rerank, rematch, securityMatching, portfolios };
 }
 
 // Hourly: drains queued historical years (idle when the queue is empty) and matches new filers.
 async function runBackfillSchedule(env) {
   const backfill = await processNextBackfillJob(env);
   const rematch = await rematchDisclosures(env);
-  return { backfill, rematch };
+  const securityMatching = await withHealth(env, "security-matching", "Listed-security matching", () => matchUnresolvedInterests(env));
+  return { backfill, rematch, securityMatching };
 }
 
 async function health(env) {
@@ -263,7 +295,8 @@ async function listIntelligence(url, env) {
 }
 
 async function listDisclosures(url, env) {
-  const politicianID = url.searchParams.get("politician_id");
+  const suppliedID = url.searchParams.get("politician_id");
+  const politicianID = suppliedID && !suppliedID.includes(":") ? `us:${suppliedID}` : suppliedID;
   const ticker = url.searchParams.get("ticker")?.toUpperCase();
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
@@ -330,13 +363,18 @@ async function listSourceFilings(url, env) {
 }
 
 async function syncAll(env) {
-  const market = await Promise.allSettled([syncMarkets(env)]);
+  const initial = await Promise.allSettled([syncMarkets(env), syncOfficial(env)]);
   const remaining = await Promise.allSettled([
-    syncOfficial(env),
-    syncApify(env),
-    syncTruth(env)
+    syncRoutineApify(env),
+    syncTruth(env),
+    withHealth(env, "securities", "SEC company and sector metadata", () => syncSecurityMetadata(env)),
+    withHealth(env, "uk-interests", "UK Parliament declared interests", () => syncUK(env)),
+    withHealth(env, "committees", "Congressional committee assignments", () => syncCommittees(env)),
+    withHealth(env, "congress-terms", "Congressional service dates", () => syncServiceDates(env)),
+    withHealth(env, "house-annual", "House annual asset reports", () => syncHouseAnnual(env))
   ]);
-  const settled = [...market, ...remaining];
+  const statements = await Promise.allSettled([withHealth(env, "presidential-actions", "White House and Federal Register", () => syncStatements(env))]);
+  const settled = [...initial, ...remaining, ...statements];
   const degraded = settled.some((result) =>
     result.status === "rejected" || result.value.status !== "available"
   );
@@ -488,19 +526,8 @@ async function syncRoster(env) {
   const current = await env.DB.prepare("SELECT value FROM app_metadata WHERE key = 'roster_version'").first();
   if (current?.value === version) return { status: "unchanged", members: roster.length };
   const now = new Date().toISOString();
-  const statements = roster.map((person) => env.DB.prepare(`
-    INSERT INTO politicians(bioguide_id, name, normalized_name, party, chamber, state, state_code,
-      district, image_url, service_start, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(bioguide_id) DO UPDATE SET name=excluded.name, normalized_name=excluded.normalized_name,
-      party=excluded.party, chamber=excluded.chamber, state=excluded.state,
-      state_code=excluded.state_code, district=excluded.district, image_url=excluded.image_url,
-      service_start=excluded.service_start, updated_at=excluded.updated_at
-  `).bind(
-    person.id, person.name, normalizePersonName(person.name), person.party, person.chamber,
-    person.state, stateCode(person.state), person.district ?? null, person.imageURL ?? null,
-    person.serviceStart ?? null, now
-  ));
+  const statements=bulkInsertStatements(env.DB,"politicians",["bioguide_id","name","normalized_name","party","chamber","state","state_code","district","image_url","service_start","updated_at","source_id","legislature","photo_source"],roster.map(p=>[p.id,p.name,normalizePersonName(p.name),p.party,p.chamber,p.state,stateCode(p.state),p.district??null,p.imageURL??null,p.serviceStart??null,now,p.sourceID,"Congress","Congress.gov"]),
+    "ON CONFLICT(bioguide_id) DO UPDATE SET name=excluded.name,normalized_name=excluded.normalized_name,party=excluded.party,chamber=excluded.chamber,state=excluded.state,state_code=excluded.state_code,district=excluded.district,image_url=excluded.image_url,service_start=excluded.service_start,updated_at=excluded.updated_at,source_id=excluded.source_id");
   statements.push(env.DB.prepare(`
     INSERT INTO app_metadata(key, value, updated_at) VALUES ('roster_version', ?, ?)
     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
@@ -521,17 +548,21 @@ async function rematchDisclosures(env, { retryUnmatched = false, afterID = "", l
   `).bind(afterID, limit).all();
   const resolve = createResolver(roster);
   let matched = 0;
-  const statements = result.results.map((row) => {
+  const updates = result.results.map((row) => {
     const match = resolve({
       name: row.representative, chamber: row.chamber, state: row.state,
       district: row.district, party: row.party
     });
     if (match) matched += 1;
-    return env.DB.prepare(`
-      UPDATE disclosures SET politician_id = ?, match_confidence = ? WHERE id = ?
-    `).bind(match?.id ?? null, match?.confidence ?? 0, row.id);
+    return [row.id, match?.id ?? null, match?.confidence ?? 0];
   });
-  await executeInChunks(env.DB, statements);
+  if (updates.length) await env.DB.prepare(`
+    WITH updates AS (SELECT json_extract(value,'$[0]') AS id,
+      json_extract(value,'$[1]') AS politician_id, json_extract(value,'$[2]') AS confidence FROM json_each(?))
+    UPDATE disclosures SET (politician_id,match_confidence) =
+      (SELECT politician_id,confidence FROM updates WHERE updates.id=disclosures.id)
+    WHERE id IN (SELECT id FROM updates)
+  `).bind(JSON.stringify(updates)).run();
   const last = result.results.at(-1);
   return {
     status: "completed",
@@ -551,17 +582,22 @@ async function rerankDisclosures(env, { since = null, afterID = "", limit = 1000
     marketMoveLookup(env.DB)
   ]);
   const now = new Date();
-  const statements = result.results.map((row) => {
+  const updates = result.results.map((row) => {
     const record = rescoredDisclosure(mapDisclosure(row), moves, now);
-    return env.DB.prepare(`
-      UPDATE disclosures SET ranking_score = ?, ranking_reasons = ?, why_it_matters = ? WHERE id = ?
-    `).bind(record.rankingScore, JSON.stringify(record.rankingReasons), record.whyItMatters, row.id);
+    return [row.id, record.rankingScore, JSON.stringify(record.rankingReasons), record.whyItMatters];
   });
-  await executeInChunks(env.DB, statements);
+  if (updates.length) await env.DB.prepare(`
+    WITH updates AS (SELECT json_extract(value,'$[0]') AS id,
+      json_extract(value,'$[1]') AS score, json_extract(value,'$[2]') AS reasons,
+      json_extract(value,'$[3]') AS explanation FROM json_each(?))
+    UPDATE disclosures SET (ranking_score,ranking_reasons,why_it_matters) =
+      (SELECT score,reasons,explanation FROM updates WHERE updates.id=disclosures.id)
+    WHERE id IN (SELECT id FROM updates)
+  `).bind(JSON.stringify(updates)).run();
   const last = result.results.at(-1);
   return {
     status: "completed",
-    updated: statements.length,
+    updated: updates.length,
     nextAfterID: result.results.length === limit && last ? last.id : null
   };
 }
@@ -583,12 +619,9 @@ async function syncOfficial(env, year = new Date().getUTCFullYear()) {
   return withHealth(env, "official-disclosures", "Official House disclosure index", async () => {
     const { filings, failures } = await collectOfficialFilings(env, year);
     const now = new Date().toISOString();
-    await executeInChunks(
-      env.DB,
-      filings.map((filing) => sourceFilingStatement(
-        env.DB, { ...filing, observedAt: now, updatedAt: now }
-      ))
-    );
+    const statements=bulkInsertStatements(env.DB,"source_filings",["id","provider","representative","chamber","disclosure_date","filing_url","doc_id","extraction_status","raw_json","observed_at","updated_at"],filings.map(f=>[f.id,f.provider,f.representative,f.chamber,f.disclosureDate,f.filingURL,f.docID,f.extractionStatus,f.rawJSON,now,now]),
+      "ON CONFLICT(id) DO UPDATE SET extraction_status=excluded.extraction_status,raw_json=excluded.raw_json,updated_at=excluded.updated_at");
+    if(statements.length)await env.DB.batch(statements);
     if (filings.length === 0 && failures.length) throw new Error(failures.map((item) => item.error).join("; "));
     return {
       recordsSeen: filings.length,
@@ -598,6 +631,20 @@ async function syncOfficial(env, year = new Date().getUTCFullYear()) {
       message: failures.length ? failures.map((item) => `${item.provider}: ${item.error}`).join("; ") : null
     };
   });
+}
+
+async function syncRoutineApify(env) {
+  if (housePTRMode(env) !== "live") return syncApify(env);
+  const index = await env.DB.prepare("SELECT status, last_success_at FROM source_health WHERE provider='official-disclosures'").first();
+  if (index?.status !== "available" || !index.last_success_at) return syncApify(env);
+  const pending = await env.DB.prepare(`
+    SELECT COUNT(*) AS count FROM source_filings sf
+    LEFT JOIN house_ptr_extractions x ON sf.doc_id = x.doc_id
+    WHERE sf.provider = 'house' AND sf.filing_url LIKE ?
+      AND (x.doc_id IS NULL OR x.status NOT IN ('extracted','empty','paper')
+        OR x.parser_version < ?)
+  `).bind(`%/${new Date().getUTCFullYear()}/%`, HOUSE_PTR_PARSER_VERSION).first();
+  return syncApify(env, Number(pending?.count ?? 0) === 0 ? { chamber: "senate" } : {});
 }
 
 async function syncApify(env, input = {}, provider = "apify") {
@@ -657,7 +704,7 @@ async function extractHouseReports(env) {
     const started = Date.now();
     const leaseExpiredBefore = new Date(started - HOUSE_PTR_LEASE_MS).toISOString();
     const candidates = await env.DB.prepare(`
-      SELECT sf.doc_id, sf.filing_url, sf.disclosure_date, sf.representative, sf.raw_json
+      SELECT sf.doc_id, sf.filing_url, sf.disclosure_date, sf.representative, sf.raw_json, COALESCE(x.attempts, 0) AS attempts
       FROM source_filings sf
       LEFT JOIN house_ptr_extractions x ON x.doc_id = sf.doc_id
       WHERE sf.provider = 'house' AND (
@@ -675,7 +722,6 @@ async function extractHouseReports(env) {
     await syncRoster(env);
     const context = { resolve: createResolver(roster), moves: await marketMoveLookup(env.DB), mode };
     const counts = { extracted: 0, empty: 0, "needs-review": 0, failed: 0, paper: 0 };
-    const errors = [];
     let rowsWritten = 0;
     let examined = 0;
     for (const filing of candidates.results) {
@@ -706,10 +752,10 @@ async function extractHouseReports(env) {
         const message = String(error?.message ?? error).slice(0, 500);
         await recordHouseExtraction(env.DB, filing, { status: "failed", error: message });
         counts.failed += 1;
-        errors.push(`${filing.doc_id}: ${message}`);
       }
     }
     await applyHousePTRMode(env, mode);
+    const exhausted = await env.DB.prepare("SELECT doc_id, error FROM house_ptr_extractions WHERE status = 'failed' AND attempts >= ? AND parser_version = ?").bind(HOUSE_PTR_MAX_ATTEMPTS, HOUSE_PTR_PARSER_VERSION).all();
     const dates = candidates.results.slice(0, examined).map((filing) => filing.disclosure_date);
     return {
       recordsSeen: examined,
@@ -718,7 +764,7 @@ async function extractHouseReports(env) {
       ...counts,
       coverageStart: minimumDate(dates),
       coverageEnd: maximumDate(dates),
-      message: errors.length ? `${errors.length} report(s) could not be read: ${errors.slice(0, 3).join("; ")}` : null
+      message: exhausted.results.length ? `${exhausted.results.length} report(s) failed after three attempts: ${exhausted.results.slice(0, 3).map((row) => `${row.doc_id}: ${row.error}`).join("; ")}` : null
     };
   });
 }

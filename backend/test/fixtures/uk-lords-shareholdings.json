@@ -1,0 +1,90 @@
+{
+  "member": {
+    "id": 2175,
+    "nameListAs": "Adebowale, L.",
+    "nameDisplayAs": "Lord Adebowale",
+    "nameFullTitle": "The Lord Adebowale CBE",
+    "nameAddressAs": "The Lord Adebowale CBE",
+    "latestParty": {
+      "id": 6,
+      "name": "Crossbench",
+      "abbreviation": "XB",
+      "backgroundColour": "C0C0C0",
+      "foregroundColour": "FFFFFF",
+      "isLordsMainParty": true,
+      "isLordsSpiritualParty": true,
+      "governmentType": null,
+      "isIndependentParty": false
+    },
+    "gender": "M",
+    "latestHouseMembership": {
+      "membershipFrom": "Life peer",
+      "membershipFromId": 4,
+      "house": 2,
+      "membershipStartDate": "2001-06-30T00:00:00",
+      "membershipEndDate": null,
+      "membershipEndReason": null,
+      "membershipEndReasonNotes": null,
+      "membershipEndReasonId": null,
+      "membershipStatus": {
+        "statusIsActive": true,
+        "statusDescription": "Current Member",
+        "statusNotes": null,
+        "statusId": 0,
+        "status": 0,
+        "statusStartDate": "2001-06-30T00:00:00"
+      }
+    },
+    "thumbnailUrl": "https://members-api.parliament.uk/api/Members/2175/Thumbnail"
+  },
+  "interestCategories": [
+    {
+      "id": 1002,
+      "name": "Category 2: Shareholdings etc. (a)",
+      "sortOrder": 1042,
+      "interests": [
+        {
+          "id": 10016,
+          "interest": "100 per cent ownership with partner of Leadership in Mind Ltd (coaching and consultancy)",
+          "createdWhen": "2012-06-14T12:49:14",
+          "lastAmendedWhen": "2025-04-05T00:00:00",
+          "deletedWhen": null,
+          "isCorrection": false,
+          "childInterests": []
+        }
+      ]
+    },
+    {
+      "id": 1003,
+      "name": "Category 2: Shareholdings etc. (b)",
+      "sortOrder": 1043,
+      "interests": [
+        {
+          "id": 31479,
+          "interest": "Visionable Limited (formerly IOCOM UK Ltd) (visual business platform)",
+          "createdWhen": "2018-01-24T16:52:56",
+          "lastAmendedWhen": "2025-04-05T00:00:00",
+          "deletedWhen": null,
+          "isCorrection": false,
+          "childInterests": []
+        }
+      ]
+    },
+    {
+      "id": 1003,
+      "name": "Category 2: Shareholdings etc. (b)",
+      "sortOrder": 1043,
+      "interests": [
+        {
+          "id": 40158,
+          "interest": "Visionable UK Limited (visual business platform owned by Visionable Limited)",
+          "createdWhen": "2022-05-17T22:30:22",
+          "lastAmendedWhen": "2025-04-05T00:00:00",
+          "deletedWhen": null,
+          "isCorrection": false,
+          "childInterests": []
+        }
+      ]
+    }
+  ]
+}

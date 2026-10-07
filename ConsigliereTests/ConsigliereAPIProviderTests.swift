@@ -304,4 +304,46 @@ final class ConsigliereAPIProviderTests: XCTestCase {
         XCTAssertEqual(components.day, 14)
         XCTAssertEqual(DisclosureDates.dayFormatter.string(from: date), "2026-09-14")
     }
+
+    @MainActor
+    func testMemberAndStockHistoriesLoadEveryAvailablePage() async throws {
+        let member = Politician(id: "us:T000001", name: "Test Member", party: "Independent", state: "Test", district: 1, chamber: .house, imageURL: nil, serviceStart: 2020)
+        let state = AppState(provider: PagedDisclosureProvider(pageCount: 21))
+        await state.loadDisclosures(for: member)
+        XCTAssertNil(state.disclosureLoadError)
+        XCTAssertEqual(state.disclosures(for: member).count, 10_500)
+        let stock = try await state.loadStockTrades(symbol: "MSFT")
+        XCTAssertEqual(stock.count, 10_500)
+        XCTAssertTrue(stock.allSatisfy { $0.symbol == "MSFT" })
+    }
+
+    @MainActor
+    func testRepeatedCursorFailsWithoutPresentingPartialHistoryAsComplete() async {
+        let state = AppState(provider: PagedDisclosureProvider(pageCount: 2, repeatsCursor: true))
+        do {
+            _ = try await state.loadStockTrades(symbol: "MSFT")
+            XCTFail("Expected repeated pagination cursor to fail")
+        } catch ConsigliereAPIClient.ClientError.invalidResponse {
+            XCTAssertTrue(state.disclosures.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+}
+
+private struct PagedDisclosureProvider: IntelligenceProvider {
+    let pageCount: Int
+    var repeatsCursor = false
+
+    func snapshot() async throws -> IntelligenceSnapshot { throw LiveProviderError.missingBaseURL }
+
+    func disclosures(query: DisclosureQuery, politicians: [Politician]) async throws -> DisclosurePage {
+        let page = Int(query.cursor?.id ?? "0")! + 1
+        let date = DisclosureDates.day("2026-10-01")!
+        let rows = (0..<500).map { row in
+            DisclosureTrade(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", page * 500 + row))!, politicianID: query.politicianID ?? "us:T000001", symbol: query.ticker ?? "ABC", assetName: "Test asset", type: .purchase, owner: .member, amountRange: "$1,001 - $15,000", transactionDate: date, filedDate: date, sourceURL: URL(string: "https://example.com/\(page).pdf")!, eventStudy: [])
+        }
+        let next = repeatsCursor ? DisclosureCursor(date: "2026-10-01", id: "1") : page < pageCount ? DisclosureCursor(date: "2026-10-01", id: String(page)) : nil
+        return DisclosurePage(disclosures: rows, nextCursor: next)
+    }
 }

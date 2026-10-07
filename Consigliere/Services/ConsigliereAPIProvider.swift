@@ -76,6 +76,7 @@ struct ConsigliereAPIClient: IntelligenceProvider {
             URLQueryItem(name: "date_basis", value: query.dateBasis.rawValue),
             URLQueryItem(name: "limit", value: String(min(max(query.limit, 1), 500)))
         ]
+        if let ticker = query.ticker { items.append(URLQueryItem(name: "ticker", value: ticker)) }
         if let politicianID = query.politicianID {
             items.append(URLQueryItem(name: "politician_id", value: politicianID))
         }
@@ -107,6 +108,51 @@ struct ConsigliereAPIClient: IntelligenceProvider {
             throw ClientError.serverStatus(httpResponse.statusCode)
         }
         return try Self.decodeDisclosurePage(data, politicians: politicians)
+    }
+
+    private func researchData(path: String, query: [URLQueryItem] = []) async throws -> Data {
+        var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
+        components.queryItems = query
+        let (data, response) = try await URLSession.shared.data(from: components.url!)
+        guard let response = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
+        guard (200..<300).contains(response.statusCode) else { throw ClientError.serverStatus(response.statusCode) }
+        return data
+    }
+
+    func members(country: Country) async throws -> [Politician] {
+        try JSONDecoder().decode(ResearchResponse<[Politician]>.self, from: await researchData(path: "v1/members", query: [URLQueryItem(name: "country", value: country.rawValue)])).data
+    }
+    func interests(country: Country, memberID: String?, ticker: String?) async throws -> [DeclaredInterest] {
+        var query = [URLQueryItem(name: "country", value: country.rawValue)]
+        if let memberID { query.append(URLQueryItem(name: "member_id", value: memberID)) }
+        if let ticker { query.append(URLQueryItem(name: "ticker", value: ticker)) }
+        return try JSONDecoder().decode(ResearchResponse<[DeclaredInterest]>.self, from: await researchData(path: "v1/interests", query: query)).data
+    }
+    func portfolioGroups() async throws -> [PortfolioGroup] {
+        try JSONDecoder().decode(ResearchResponse<[PortfolioGroup]>.self, from: await researchData(path: "v1/portfolios")).data
+    }
+    func portfolio(id: String, ownOnly: Bool) async throws -> ReferencePortfolio {
+        try JSONDecoder().decode(ResearchResponse<ReferencePortfolio>.self, from: await researchData(path: "v1/portfolios/" + id, query: [URLQueryItem(name: "own_only", value: String(ownOnly))])).data
+    }
+    func portfolioChanges(id: String, ownOnly: Bool) async throws -> [ReferenceChange] {
+        try JSONDecoder().decode(ResearchResponse<[ReferenceChange]>.self, from: await researchData(path: "v1/portfolios/" + id + "/changes", query: [URLQueryItem(name: "own_only", value: String(ownOnly))])).data
+    }
+    func statements(ticker: String?) async throws -> [PresidentialStatement] {
+        try JSONDecoder().decode(ResearchResponse<[PresidentialStatement]>.self, from: await researchData(path: "v1/statements", query: ticker.map { [URLQueryItem(name: "ticker", value: $0)] } ?? [])).data
+    }
+    func statementDetail(id: String, politicians: [Politician]) async throws -> StatementDetail {
+        let data = try await researchData(path: "v1/statements/" + id)
+        let statement = try JSONDecoder().decode(ResearchResponse<PresidentialStatement>.self, from: data).data
+        let related = try JSONDecoder().decode(ResearchResponse<StatementRelatedRecords>.self, from: data).data
+        return StatementDetail(statement: statement, holdings: related.relatedHoldings, trades: Self.decodeDisclosures(related.relatedTrades, politicians: politicians))
+    }
+    func reportTag(statementID: String, tagID: String, reason: String) async throws {
+        var request = URLRequest(url: baseURL.appending(path: "v1/statement-corrections"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["statementID": statementID, "tagID": tagID, "reason": reason])
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let response = response as? HTTPURLResponse, response.statusCode == 202 else { throw ClientError.invalidResponse }
     }
 
     static func decodeSnapshot(_ data: Data, politicians: [Politician]) throws -> IntelligenceSnapshot {
@@ -346,6 +392,7 @@ struct PoliticianIdentityResolver {
         district: Int? = nil
     ) -> String? {
         if let providerID, IDs.contains(providerID) { return providerID }
+        if let providerID, IDs.contains("us:" + providerID) { return "us:" + providerID }
         let normalized = Self.normalize(name)
         let parts = normalized.split(separator: " ").map(String.init)
         guard let given = parts.first, let surname = parts.last else { return nil }
@@ -491,4 +538,9 @@ enum StateCodes {
         if trimmed.count == 2, trimmed.allSatisfy(\.isLetter) { return trimmed.uppercased() }
         return byName[trimmed.lowercased()]
     }
+}
+
+private struct StatementRelatedRecords: Decodable {
+    let relatedHoldings: [RelatedHolding]
+    let relatedTrades: [DisclosureRecord]
 }

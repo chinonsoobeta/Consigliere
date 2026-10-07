@@ -18,6 +18,8 @@ extension View {
     /// Every tab's stack can open any record, so destinations are registered once per stack.
     func consigliereDestinations() -> some View {
         self
+            .navigationDestination(for: StockRoute.self) { StockDetailView(symbol: $0.symbol) }
+            .navigationDestination(for: PresidentialStatement.self) { StatementDetailView(statement: $0) }
             .navigationDestination(for: TradeFiling.self) { FilingDetailView(filing: $0) }
             .navigationDestination(for: DisclosureTrade.self) { TradeDetailView(trade: $0) }
             .navigationDestination(for: Politician.self) { PoliticianProfileView(politician: $0) }

@@ -26,6 +26,11 @@ const OWNERS = { SP: "spouse", JT: "joint", DC: "dependent" };
 const NOT_TICKERS = new Set(["ADR", "ETF", "REIT", "LLC", "INC"]);
 
 export async function readHousePTR(bytes) {
+  const { pages, items } = await readHousePDFItems(bytes);
+  return { pages, ...parseHousePTRItems(items) };
+}
+
+export async function readHousePDFItems(bytes) {
   // pdf.js rejects Node Buffers and may detach what it is given, so it always gets its own copy.
   const pdf = await getDocumentProxy(new Uint8Array(bytes));
   try {
@@ -39,7 +44,7 @@ export async function readHousePTR(bytes) {
         items.push({ page, x: item.transform[4], y: height - item.transform[5], text: item.str });
       }
     }
-    return { pages: pdf.numPages, ...parseHousePTRItems(items) };
+    return { pages: pdf.numPages, items };
   } finally {
     await pdf.cleanup?.();
   }
@@ -152,7 +157,7 @@ export function parseHousePTRItems(rawItems) {
   return result;
 }
 
-function groupLines(rawItems) {
+export function groupLines(rawItems) {
   const items = rawItems
     .map((item) => ({ page: item.page, x: item.x, y: item.y, text: cleanText(item.text ?? item.str ?? "") }))
     .filter((item) => item.text)

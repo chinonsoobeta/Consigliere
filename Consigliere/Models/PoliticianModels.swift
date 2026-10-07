@@ -2,13 +2,13 @@ import Foundation
 import SwiftUI
 
 enum Chamber: String, Codable, CaseIterable {
-    case house, senate
+    case house, senate, commons, lords, representatives
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "chamber.\(rawValue)") }
     var icon: String { self == .senate ? "building.columns.fill" : "person.3.fill" }
 }
 
 struct Politician: Identifiable, Hashable, Codable {
-    let id: String
+    var id: String
     let name: String
     let party: String
     let state: String
@@ -16,19 +16,31 @@ struct Politician: Identifiable, Hashable, Codable {
     let chamber: Chamber
     let imageURL: URL?
     let serviceStart: Int
+    var country: String? = nil
+    var sourceID: String? = nil
+    var legislature: String? = nil
+    var regionLabel: String? = nil
+    var partyHex: String? = nil
+    var wikidataID: String? = nil
+    var photoSource: String? = nil
+    var serviceEnd: String? = nil
+    var nation: Country { Country(rawValue: country ?? String(id.split(separator: ":").first ?? "us")) ?? .us }
 
     var jurisdiction: Text {
         district.map { Text("politician.district \(state) \($0)") } ?? Text(state)
     }
 
     var partyAbbreviation: String {
+        if nation != .us { return party }
         if party.localizedCaseInsensitiveContains("Democrat") { return "D" }
         if party.localizedCaseInsensitiveContains("Republican") { return "R" }
         return "I"
     }
 
     var partyColor: Color {
-        switch partyAbbreviation {
+        if let hex = partyHex, let value = UInt32(hex, radix: 16) { return Color(red: Double((value >> 16) & 255)/255, green: Double((value >> 8) & 255)/255, blue: Double(value & 255)/255) }
+        if nation != .us { return .secondary }
+        return switch partyAbbreviation {
         case "D": .blue
         case "R": .red
         default: .secondary
@@ -37,6 +49,7 @@ struct Politician: Identifiable, Hashable, Codable {
 
     /// Compact newsroom label: "D-NJ" for senators and at-large seats, "D-NJ-5" otherwise.
     var shortLabel: String {
+        if nation != .us { return "\(party) · \(state)" }
         let code = StateCodes.code(for: state) ?? state
         return district.map { "\(partyAbbreviation)-\(code)-\($0)" } ?? "\(partyAbbreviation)-\(code)"
     }
@@ -267,4 +280,34 @@ struct PendingFiling: Identifiable, Hashable, Codable {
     let filedDate: String
     let sourceURL: URL
     let documentID: String?
+}
+
+enum Country: String, CaseIterable, Identifiable, Codable {
+    case us, uk, ca, au
+    var id: String { rawValue }
+    var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "country.\(rawValue)") }
+    var chambers: [Chamber] {
+        switch self { case .us: [.house,.senate]; case .uk: [.commons,.lords]; case .ca: [.commons,.senate]; case .au: [.representatives,.senate] }
+    }
+}
+
+struct DeclaredInterest: Identifiable, Codable, Hashable {
+    let id: String
+    let memberID: String
+    let country: String
+    let category: String
+    let organisation: String
+    let ticker: String?
+    let exchange: String?
+    let figi: String?
+    let thresholdText: String?
+    let action: String
+    let owner: String
+    let registeredAt: String?
+    let effectiveAt: String?
+    let publishedAt: String?
+    let endedAt: String?
+    let sourceURL: URL
+    let confidence: Double
+    let reviewStatus: String
 }

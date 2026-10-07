@@ -2,7 +2,9 @@ import SwiftUI
 
 struct PoliticianProfileView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let politician: Politician
+    @State private var referencePortfolio: ReferencePortfolio?
 
     private var trades: [DisclosureTrade] { appState.disclosures(for: politician) }
     private var stats: TradingStats? { appState.stats(for: politician) }
@@ -10,6 +12,10 @@ struct PoliticianProfileView: View {
     private var pendingFilings: [PendingFiling] { appState.pendingFilings(for: politician) }
 
     var body: some View {
+        if politician.nation != .us { DeclaredInterestsView(country: politician.nation, member: politician) } else { usProfile }
+    }
+
+    private var usProfile: some View {
         List {
             Section { header }
                 .listRowBackground(Color.clear)
@@ -26,6 +32,17 @@ struct PoliticianProfileView: View {
                 }
             }
             if let stats { statsSection(stats) }
+            if !trades.isEmpty && !appState.loadingPoliticianIDs.contains(politician.id) && appState.disclosureLoadError == nil { MemberFilingCharts(trades: trades) }
+            Section {
+                if let referencePortfolio {
+                    ForEach(Array(referencePortfolio.positions.filter { $0.estimate > 0 }.prefix(10))) { position in
+                        ReferencePositionRow(position: position)
+                    }
+                    if referencePortfolio.positions.allSatisfy({ $0.estimate == 0 }) { Text("portfolio.empty") }
+                } else { Text("portfolio.unavailable") }
+                NavigationLink("portfolio.seeAll") { ReferencePortfolioView(portfolioID: "member/" + politician.id) }
+                NavigationLink("portfolio.method") { MethodologyView() }
+            } header: { Text("portfolio.member") } footer: { Text("portfolio.estimated") }
             if !pendingFilings.isEmpty {
                 Section {
                     ForEach(pendingFilings) { PendingFilingRow(filing: $0) }
@@ -40,8 +57,14 @@ struct PoliticianProfileView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(Text(verbatim: politician.name))
         .navigationBarTitleDisplayMode(.inline)
-        .task { await appState.loadDisclosures(for: politician) }
-        .refreshable { await appState.loadDisclosures(for: politician) }
+        .task { await load() }
+        .refreshable { await load() }
+    }
+
+    private func load() async {
+        async let history: Void = appState.loadDisclosures(for: politician)
+        referencePortfolio = try? await appState.loadPortfolio(id: "member/" + politician.id, ownOnly: false)
+        await history
     }
 
     private var header: some View {
@@ -50,7 +73,10 @@ struct PoliticianProfileView: View {
                 PoliticianAvatar(politician: politician, size: 76)
                 VStack(alignment: .leading, spacing: 5) {
                     Text(verbatim: politician.name).font(.title2.bold())
-                    HStack(spacing: 6) {
+                    let metadataLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                        : AnyLayout(HStackLayout(spacing: 6))
+                    metadataLayout {
                         Text(verbatim: politician.shortLabel).font(.subheadline.weight(.semibold)).foregroundStyle(politician.partyColor)
                         ChamberTag(chamber: politician.chamber)
                     }
@@ -81,12 +107,15 @@ struct PoliticianProfileView: View {
 
     private func statsSection(_ stats: TradingStats) -> some View {
         Section {
-            Grid(horizontalSpacing: 12, verticalSpacing: 14) {
-                GridRow {
+            let statLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+            VStack(alignment: .leading, spacing: 14) {
+                statLayout {
                     StatTile(label: "profile.stat.lastYear") { Text(stats.lastYear, format: .number) }
                     StatTile(label: "profile.stat.buySell") { Text(verbatim: "\(stats.buys) / \(stats.sells)") }
                 }
-                GridRow {
+                statLayout {
                     StatTile(label: "profile.stat.medianLag") {
                         if let lag = stats.medianLagDays { Text("study.days \(lag)") } else { Text(verbatim: "—") }
                     }
@@ -99,11 +128,16 @@ struct PoliticianProfileView: View {
             if !stats.topSymbols.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("profile.topTickers").font(.caption).foregroundStyle(.secondary)
-                    HStack(spacing: 6) {
+                    let tickerLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                        : AnyLayout(HStackLayout(spacing: 6))
+                    tickerLayout {
                         ForEach(stats.topSymbols, id: \.self) { symbol in
-                            Text(verbatim: symbol).font(.caption.monospaced().weight(.bold))
-                                .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.12), in: Capsule())
+                            NavigationLink(value: StockRoute(symbol: symbol)) {
+                                Text(verbatim: symbol).font(.caption.monospaced().weight(.bold))
+                                    .padding(.horizontal, 8).padding(.vertical, 4)
+                                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                            }.buttonStyle(.borderless)
                         }
                     }
                 }

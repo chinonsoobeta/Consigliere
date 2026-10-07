@@ -3,16 +3,10 @@ import SwiftUI
 struct MembersView: View {
     @EnvironmentObject private var appState: AppState
     @State private var query = ""
-    @State private var party = PartyFilter.all
+    @State private var party = ""
     @State private var chamber: Chamber?
 
-    enum PartyFilter: String, CaseIterable, Identifiable {
-        case all, democratic, republican
-        var id: String { rawValue }
-        var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "party.\(rawValue)") }
-    }
-
-    private var filtersActive: Bool { party != .all || chamber != nil }
+    private var filtersActive: Bool { !party.isEmpty || chamber != nil }
 
     private var following: [Politician] { appState.followedPoliticians.filter(matches) }
     private var active: [Politician] { appState.politiciansWithDisclosures.filter(matches) }
@@ -22,9 +16,10 @@ struct MembersView: View {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
     private var unmatched: [UnmatchedFiler] {
-        appState.unmatchedFilers.filter { filer in
+        guard appState.selectedCountry == .us else { return [] }
+        return appState.unmatchedFilers.filter { filer in
             (chamber == nil || filer.chamber == chamber?.rawValue)
-                && party == .all
+                && party.isEmpty
                 && (query.isEmpty || filer.representative.localizedCaseInsensitiveContains(query))
         }
     }
@@ -32,6 +27,14 @@ struct MembersView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Picker("countries.members", selection: $appState.selectedCountry) {
+                        ForEach(Country.allCases) { Text($0.label).tag($0) }
+                    }
+                    if appState.selectedCountry == .us { NavigationLink("portfolio.congress") { ReferencePortfolioView(portfolioID: "congress") } }
+                    else { NavigationLink("interests.title") { DeclaredInterestsView(country: appState.selectedCountry) } }
+                    if let error = appState.countryLoadError { Text(verbatim: error).font(.caption).foregroundStyle(.orange) }
+                }
                 if appState.disclosureLoadError != nil {
                     Section {
                         HStack {
@@ -51,9 +54,11 @@ struct MembersView: View {
                     Section { rows(active) } header: { Text("members.active \(active.count)") }
                 }
                 Section { rows(others) } header: {
-                    Text("members.others \(others.count)")
+                    if appState.selectedCountry == .us { Text("members.others \(others.count)") }
+                    else { Text("members.all \(others.count)") }
                 } footer: {
-                    Text("search.rosterSource")
+                    if appState.selectedCountry == .us { Text("search.rosterSource") }
+                    else { Text("interests.method") }
                 }
                 if !unmatched.isEmpty {
                     Section {
@@ -71,6 +76,7 @@ struct MembersView: View {
             .toolbar { filterMenu }
             .refreshable { await appState.load(force: true) }
             .consigliereDestinations()
+            .task(id: appState.selectedCountry) { party = ""; chamber = nil; await appState.loadCountry(appState.selectedCountry) }
         }
     }
 
@@ -95,12 +101,12 @@ struct MembersView: View {
     private var filterMenu: some View {
         Menu {
             Picker("search.party", selection: $party) {
-                ForEach(PartyFilter.allCases) { Text($0.label).tag($0) }
+                Text("search.all").tag("")
+                ForEach(Array(Set(appState.politicians.filter { $0.nation == appState.selectedCountry }.map(\.party))).sorted(), id: \.self) { Text(verbatim: $0).tag($0) }
             }
             Picker("members.chamber", selection: $chamber) {
                 Text("search.all").tag(Chamber?.none)
-                Text("chamber.house").tag(Chamber?.some(.house))
-                Text("chamber.senate").tag(Chamber?.some(.senate))
+                ForEach(appState.selectedCountry.chambers, id: \.self) { Text($0.label).tag(Optional($0)) }
             }
         } label: {
             Image(systemName: filtersActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
@@ -110,12 +116,8 @@ struct MembersView: View {
 
     private func matches(_ politician: Politician) -> Bool {
         let matchesChamber = chamber == nil || politician.chamber == chamber
-        let matchesParty = switch party {
-        case .all: true
-        case .democratic: politician.partyAbbreviation == "D"
-        case .republican: politician.partyAbbreviation == "R"
-        }
-        guard matchesChamber && matchesParty else { return false }
+        let matchesParty = party.isEmpty || politician.party == party
+        guard politician.nation == appState.selectedCountry && matchesChamber && matchesParty else { return false }
         guard !query.isEmpty else { return true }
         let tickers = appState.disclosures(for: politician).flatMap { [$0.symbol, $0.assetName] }
         let terms = [politician.name, politician.state, politician.shortLabel] + tickers

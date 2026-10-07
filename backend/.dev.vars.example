@@ -10,3 +10,12 @@ TWELVE_DATA_API_KEY=licensed-market-data-key
 TRUTH_API_URL=https://licensed-truth-api.example/posts
 TRUTH_API_TOKEN=licensed-truth-api-token
 PUBLISHER_USER_AGENT=Consigliere/1.0 public-interest research contact: research@example.com
+
+# SEC requires an identifiable organisation/contact user agent. Use your actual contact.
+# SEC_USER_AGENT=Consigliere research contact@example.com
+# Optional model enrichment; rule tags work without it. API use may incur charges.
+# ANTHROPIC_API_KEY=your-anthropic-key
+# Optional higher-rate OpenFIGI search. Public matching uses at most five searches/minute.
+# OPENFIGI_API_KEY=your-openfigi-key
+# Canada and Australia collectors are not implemented or enabled. Written permission
+# and source-format verification are required before adding them.

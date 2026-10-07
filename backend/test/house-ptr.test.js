@@ -123,3 +123,26 @@ test("explanations name options and skip an empty ticker", () => {
   assert.match(bond, /a purchase of US Treasury Note 1\/31\/2029 in/);
   assert.doesNotMatch(bond, /\(\)/);
 });
+
+
+import { readHouseAnnual, parseAnnualItems, annualIndex } from '../src/house-annual.js';
+test('annual Schedule A keeps year-end values, owners and wrapped asset names without importing Schedule B',async()=>{
+ const report=await readHouseAnnual(await readFile(new URL('./fixtures/10075701-annual.pdf',import.meta.url)));
+ assert.deepEqual(report.warnings,[]);assert.equal(report.year,2025);assert.equal(report.filedDate,'2026-05-15');assert.equal(report.assets.length,68);
+ const apple=report.assets.find(a=>a.ticker==='AAPL'&&a.assetType==='ST');assert.equal(apple.owner,'spouse');assert.equal(apple.amountRange,'$5,000,001 - $25,000,000');
+ const wrapped=report.assets.find(a=>a.name.startsWith('45 Belden'));assert.equal(wrapped.owner,'spouse');assert.equal(wrapped.amountRange,'$5,000,001 - $25,000,000');
+ assert.match(report.assets.find(a=>a.ticker==='VST').description,/expiration date of 1\/16\/26/);
+ assert.ok(report.assets.every(a=>!('transactionDate' in a)));
+});
+test('annual indexes resolve member originals and reject extensions and unknown candidates',()=>{
+ const header='Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID';
+ const rows=[header,'Hon.\tPelosi\tNancy\t\tO\tCA11\t2025\t5/15/2026\t10075701','Hon.\tPelosi\tNancy\t\tX\tCA11\t2025\t4/15/2026\t30001','\tUnknown\tCandidate\t\tO\tCA11\t2025\t5/15/2026\t10001'];
+ const result=annualIndex(rows.join('\n'),2025);assert.equal(result.length,1);assert.equal(result[0].memberID,'us:P000197');assert.ok(result[0].sourceURL.includes('/2025/10075701.pdf'));
+ assert.ok(parseAnnualItems([]).warnings.length>0);
+});
+
+test('annual parsing stops at Schedule B even when no closing footnote separates it',async()=>{
+ const report=await readHouseAnnual(await readFile(new URL('./fixtures/10075834-annual.pdf',import.meta.url)));
+ assert.deepEqual(report.warnings,[]);assert.equal(report.assets.length,335);assert.equal(report.name,'Hon. Kevin Hern');
+ assert.ok(report.assets.every(asset=>asset.name && asset.owner && asset.amountRange));
+});
