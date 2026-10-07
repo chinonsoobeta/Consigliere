@@ -52,6 +52,16 @@ struct ActivityBucket: Identifiable {
     let count: Int
 }
 
+/// Distinct members buying and selling one security over a recent window.
+struct TickerFlow: Identifiable, Hashable {
+    var id: String { symbol }
+    let symbol: String
+    let assetName: String
+    let buyers: Int
+    let sellers: Int
+    var net: Int { buyers - sellers }
+}
+
 struct DelayRecord: Identifiable {
     var id: URL { filing.sourceURL }
     let filing: TradeFiling
@@ -76,18 +86,54 @@ enum TradeAnalytics {
         }
     }
 
+    /// Compares the last complete week with the median of the weeks before it. The current week is
+    /// still filling up, and a short history (or a median of zero) says nothing about "usual".
     static func busierThanUsual(_ buckets: [WeeklyBucket]) -> Bool {
-        let sorted = buckets.map(\.count).sorted()
-        guard !sorted.isEmpty else { return false }
+        guard buckets.count >= 3 else { return false }
+        let latest = buckets[buckets.count - 2].count
+        let history = buckets.dropLast(2).map(\.count)
+        guard history.filter({ $0 > 0 }).count >= 6 else { return false }
+        let sorted = history.sorted()
         let middle = sorted.count / 2
         let median = sorted.count % 2 == 0 ? Double(sorted[middle - 1] + sorted[middle]) / 2 : Double(sorted[middle])
-        return Double(buckets.last?.count ?? 0) > 1.5 * median
+        return median > 0 && Double(latest) > 1.5 * median
     }
 
+    /// Securities with the most distinct members on one side, by filing date. Only listed symbols
+    /// count: private funds and Treasury bills cannot be followed or traded by a reader.
+    static func flows(_ trades: [DisclosureTrade], days: Int = 30, now: Date = .now) -> [TickerFlow] {
+        let start = now.addingTimeInterval(-Double(days) * 86_400)
+        let recent = trades.filter { !$0.symbol.isEmpty && $0.filedDate >= start && $0.filedDate <= now }
+        return Dictionary(grouping: recent, by: \.symbol).map { symbol, trades in
+            let member = { (trade: DisclosureTrade) in trade.politicianID ?? trade.representative }
+            return TickerFlow(
+                symbol: symbol,
+                assetName: trades.first?.assetName ?? symbol,
+                buyers: Set(trades.filter { $0.type == .purchase }.map(member)).count,
+                sellers: Set(trades.filter { $0.type == .sale }.map(member)).count
+            )
+        }
+    }
+
+    static func mostBought(_ flows: [TickerFlow], limit: Int = 4) -> [TickerFlow] {
+        Array(flows.filter { $0.net > 0 }
+            .sorted { ($0.buyers, $0.net, $1.symbol) > ($1.buyers, $1.net, $0.symbol) }.prefix(limit))
+    }
+
+    static func mostSold(_ flows: [TickerFlow], limit: Int = 4) -> [TickerFlow] {
+        Array(flows.filter { $0.sellers > 0 && $0.net < 0 }
+            .sorted { ($0.sellers, -$0.net, $1.symbol) > ($1.sellers, -$1.net, $0.symbol) }.prefix(limit))
+    }
+
+    /// Monthly buys and sells from the first trade (at most 24 months, at least 6), so a short
+    /// record does not render as an empty chart with a sliver at the end.
     static func activityHistogram(_ trades: [DisclosureTrade], now: Date = .now) -> [ActivityBucket] {
         let cal = calendar
         let current = cal.dateInterval(of: .month, for: now)!.start
-        return (0..<24).reversed().flatMap { offset in
+        let span = trades.map(\.transactionDate).min()
+            .map { cal.dateComponents([.month], from: cal.dateInterval(of: .month, for: $0)!.start, to: current).month ?? 0 } ?? 0
+        let months = min(max(span + 1, 6), 24)
+        return (0..<months).reversed().flatMap { offset in
             let month = cal.date(byAdding: .month, value: -offset, to: current)!
             let end = cal.date(byAdding: .month, value: 1, to: month)!
             return [DisclosureTransactionType.purchase, .sale].map { type in
@@ -112,7 +158,8 @@ enum TradeAnalytics {
         let alternatives = candidates.filter { ($0.politicianID ?? $0.representative) != previousMember }
         if !alternatives.isEmpty { candidates = alternatives }
         func factors(_ trade: DisclosureTrade) -> [Double] {
-            [trade.amount.sortValue, committeeLink(trade) ? 1 : 0, trade.isOption ? 1 : 0, trade.isLate ? 1 : 0, followed.contains(trade.politicianID ?? "") ? 1 : 0]
+            // A listed security comes first: a private fund is not something a reader can act on.
+            [trade.symbol.isEmpty ? 0 : 1, trade.amount.sortValue, committeeLink(trade) ? 1 : 0, trade.isOption ? 1 : 0, trade.isLate ? 1 : 0, followed.contains(trade.politicianID ?? "") ? 1 : 0]
         }
         return candidates.sorted {
             let lhs = factors($0), rhs = factors($1)

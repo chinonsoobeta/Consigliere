@@ -10,7 +10,7 @@ final class AnalysisEngineTests: XCTestCase {
     }
 
     func testActivityIncludesEmptyMonthsAndExcludesOldTrades() {
-        XCTAssertEqual(TradeAnalytics.activityHistogram([]).count, 48)
+        XCTAssertEqual(TradeAnalytics.activityHistogram([]).count, 12)
         XCTAssertTrue(TradeAnalytics.delays([]).isEmpty)
         XCTAssertNil(TradeAnalytics.notable([], followed: [], previousMember: nil))
     }

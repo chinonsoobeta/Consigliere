@@ -29,7 +29,7 @@ struct MembersView: View {
             List {
                 Section {
                     Picker("countries.members", selection: $appState.selectedCountry) {
-                        ForEach(Country.allCases) { Text($0.label).tag($0) }
+                        ForEach(Country.available) { Text($0.label).tag($0) }
                     }
                     if appState.selectedCountry == .us { NavigationLink("portfolio.congress") { ReferencePortfolioView(portfolioID: "congress") } }
                     else { NavigationLink("interests.title") { DeclaredInterestsView(country: appState.selectedCountry) } }

@@ -354,7 +354,7 @@ struct TradeRow: View {
                     if !trade.symbol.isEmpty {
                         Button { showStock = true } label: { Text(verbatim: trade.displaySymbol).font(.headline.monospaced()) }
                             .buttonStyle(.borderless)
-                    } else { Text(verbatim: trade.displaySymbol).font(.headline.monospaced()).lineLimit(1) }
+                    } else { Text(verbatim: trade.displaySymbol).font(.headline).lineLimit(1) }
                     if trade.isOption { OptionsTag() }
                     if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                     AmountText(amount: trade.amount)

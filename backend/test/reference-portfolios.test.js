@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { amountBand, buildMemberPortfolio, aggregatePortfolios } from '../src/reference-portfolios.js';
+import { amountBand, assetGroup, buildMemberPortfolio, aggregatePortfolios } from '../src/reference-portfolios.js';
 import { ruleTags, validTags, relevance, parseWhiteHouseFeed } from '../src/statements.js';
 const row = (id, type, amount, raw = {}, extra = {}) => ({ id, politician_id: 'A', ticker: 'ABC', asset_name: 'Example', owner: 'member', asset_type: 'ST', amount_range: amount, transaction_type: type, transaction_date: `2026-01-${id.padStart(2,'0')}`, report_date: `2026-02-${id.padStart(2,'0')}`, source_url: 'https://example.com/source', raw_json: JSON.stringify(raw), ...extra });
 
@@ -277,4 +277,11 @@ test('routine Apify requests Senate only after the indexed House backlog is clas
   assert.equal((await run()).status,200);assert.deepEqual(chambers,['house','senate']);chambers.length=0;
   sqlite.exec("UPDATE house_ptr_extractions SET status='extracted'");assert.equal((await run()).status,200);assert.deepEqual(chambers,['senate']);
  }finally{globalThis.fetch=original;sqlite.close();}
+});
+
+test('funds are grouped by House code or an ETF name filed as a stock',()=>{
+ assert.equal(assetGroup({asset_type:'EF',ticker:'VOO',asset_name:'Vanguard S&P 500 ETF (VOO)'}),'funds');
+ assert.equal(assetGroup({asset_type:'ST',ticker:'IWR',asset_name:'iShares Russell Mid-Cap ETF (IWR)'}),'funds');
+ assert.equal(assetGroup({asset_type:'ST',ticker:'NFLX',asset_name:'Netflix, Inc.'}),'stocks');
+ assert.equal(assetGroup({asset_type:'OP',ticker:'MSFT',asset_name:'Microsoft ETF-linked call'}),'options');
 });

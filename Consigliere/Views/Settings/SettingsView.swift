@@ -26,7 +26,7 @@ struct SettingsView: View {
                     }
                 }
                 Section("countries.home") {
-                    ForEach(Country.allCases) { country in
+                    ForEach(Country.available) { country in
                         Toggle(country.label, isOn: Binding(get: { appState.homeCountries.contains(country) }, set: { enabled in
                             var countries = appState.homeCountries
                             if enabled { countries.insert(country) } else { countries.remove(country) }

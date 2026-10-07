@@ -7,10 +7,10 @@ final class TradeModelTests: XCTestCase {
     private func trade(
         _ symbol: String, type: DisclosureTransactionType = .purchase, amount: String = "$1,001 - $15,000",
         traded: String = "2026-08-01", filed: String = "2026-08-20", source: String = "https://example.com/a.pdf",
-        observed: String? = nil
+        observed: String? = nil, member: String = "T000001"
     ) -> DisclosureTrade {
         DisclosureTrade(
-            id: UUID(), politicianID: "T000001", symbol: symbol, assetName: symbol, type: type,
+            id: UUID(), politicianID: member, symbol: symbol, assetName: symbol, type: type,
             owner: .member, amountRange: amount, transactionDate: day(traded), filedDate: day(filed),
             sourceURL: URL(string: source)!, eventStudy: [], observedAt: observed.map(day)
         )
@@ -119,4 +119,37 @@ final class TradeModelTests: XCTestCase {
         XCTAssertEqual(TradeAnalytics.medianReportingDelay(TradeAnalytics.delays(records + [nextReport])), 19.5)
     }
 
+    func testFlowsCountDistinctMembersAndIgnoreUnlistedAssets() {
+        let now = day("2026-08-21")
+        let records = [
+            trade("NVDA", member: "A"), trade("NVDA", member: "A"), trade("NVDA", member: "B"),
+            trade("NVDA", type: .sale, member: "C"),
+            trade("TSLA", type: .sale, member: "A"), trade("TSLA", type: .sale, member: "B"),
+            trade("", member: "D"),
+            trade("AAPL", filed: "2026-06-01", member: "E")
+        ]
+        let flows = TradeAnalytics.flows(records, now: now)
+        XCTAssertEqual(Set(flows.map(\.symbol)), ["NVDA", "TSLA"])
+        let nvda = flows.first { $0.symbol == "NVDA" }!
+        XCTAssertEqual(nvda.buyers, 2)
+        XCTAssertEqual(nvda.sellers, 1)
+        XCTAssertEqual(TradeAnalytics.mostBought(flows).map(\.symbol), ["NVDA"])
+        XCTAssertEqual(TradeAnalytics.mostSold(flows).map(\.symbol), ["TSLA"])
+    }
+
+    func testBusierThanUsualNeedsHistoryAndIgnoresTheCurrentWeek() {
+        let week = { (offset: Int, count: Int) in WeeklyBucket(start: self.day("2026-01-05").addingTimeInterval(Double(offset) * 7 * 86_400), count: count) }
+        let steady = (0..<10).map { week($0, 2) }
+        XCTAssertTrue(TradeAnalytics.busierThanUsual(steady + [week(10, 6), week(11, 0)]))
+        XCTAssertFalse(TradeAnalytics.busierThanUsual(steady + [week(10, 2), week(11, 9)]))
+        let sparse = (0..<10).map { week($0, $0 < 3 ? 1 : 0) }
+        XCTAssertFalse(TradeAnalytics.busierThanUsual(sparse + [week(10, 5), week(11, 0)]))
+    }
+
+    func testActivityStartsAtTheFirstTrade() {
+        let now = day("2026-08-21")
+        XCTAssertEqual(TradeAnalytics.activityHistogram([trade("AAPL")], now: now).count, 12)
+        XCTAssertEqual(TradeAnalytics.activityHistogram([trade("AAPL", traded: "2025-11-03")], now: now).count, 20)
+        XCTAssertEqual(TradeAnalytics.activityHistogram([trade("AAPL", traded: "2020-01-02")], now: now).count, 48)
+    }
 }

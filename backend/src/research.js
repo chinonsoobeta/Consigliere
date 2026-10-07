@@ -111,7 +111,11 @@ export async function researchRoute(request, env, mapDisclosure) {
       const result = await env.DB.prepare("SELECT * FROM reference_changes WHERE portfolio_id=? ORDER BY filed_date DESC, id DESC LIMIT 500").bind(id).all();
       return response({ data: result.results.map((r) => ({ id: r.id, ticker: r.ticker, assetName: r.asset_name, action: r.action, filedDate: r.filed_date, disclosureID: r.disclosure_id, sourceURL: r.source_url, note: r.note })) });
     }
-    const portfolio = await readPortfolio(env.DB, id, url.searchParams.get("own_only") === "true");
+    const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+    const portfolio = await readPortfolio(env.DB, id, url.searchParams.get("own_only") === "true", {
+      ticker: url.searchParams.get("ticker")?.toUpperCase() || null,
+      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 1000) : null
+    });
     return response(portfolio ? { data: portfolio } : { error: "portfolio_not_built" }, portfolio ? 200 : 404);
   }
   if (request.method === "GET" && path === "/v1/statements") {
@@ -146,6 +150,9 @@ export async function researchRoute(request, env, mapDisclosure) {
     if (typeof input.reason !== "string" || input.reason.trim().length < 5 || input.reason.length > 1000) return response({ error: "reason_required" },400);
     const row = await env.DB.prepare("SELECT tags FROM statements WHERE id=?").bind(String(input.statementID ?? "")).first();
     if (!row || !JSON.parse(row.tags).some((t) => t.id === input.tagID)) return response({ error: "unknown_tag" },400);
+    // Anyone can report a tag, so a statement's review queue is capped rather than left open-ended.
+    const pending = await env.DB.prepare("SELECT COUNT(*) AS count FROM statement_corrections WHERE statement_id=? AND status='pending'").bind(String(input.statementID)).first();
+    if (Number(pending?.count ?? 0) >= 25) return response({ error: "review_queue_full" }, 429);
     const id = stableUUID(`${input.statementID}|${input.tagID}|${input.reason.trim()}`);
     await env.DB.prepare("INSERT OR IGNORE INTO statement_corrections(id,statement_id,tag_id,reason,created_at) VALUES(?,?,?,?,?)").bind(id,input.statementID,input.tagID,input.reason.trim(),new Date().toISOString()).run();
     return response({ data: { id, status: "pending" } },202);

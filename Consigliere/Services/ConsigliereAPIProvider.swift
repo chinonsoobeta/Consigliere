@@ -131,8 +131,11 @@ struct ConsigliereAPIClient: IntelligenceProvider {
     func portfolioGroups() async throws -> [PortfolioGroup] {
         try JSONDecoder().decode(ResearchResponse<[PortfolioGroup]>.self, from: await researchData(path: "v1/portfolios")).data
     }
-    func portfolio(id: String, ownOnly: Bool) async throws -> ReferencePortfolio {
-        try JSONDecoder().decode(ResearchResponse<ReferencePortfolio>.self, from: await researchData(path: "v1/portfolios/" + id, query: [URLQueryItem(name: "own_only", value: String(ownOnly))])).data
+    func portfolio(id: String, ownOnly: Bool, ticker: String?, limit: Int?) async throws -> ReferencePortfolio {
+        var query = [URLQueryItem(name: "own_only", value: String(ownOnly))]
+        if let ticker { query.append(URLQueryItem(name: "ticker", value: ticker)) }
+        if let limit { query.append(URLQueryItem(name: "limit", value: String(limit))) }
+        return try JSONDecoder().decode(ResearchResponse<ReferencePortfolio>.self, from: await researchData(path: "v1/portfolios/" + id, query: query)).data
     }
     func portfolioChanges(id: String, ownOnly: Bool) async throws -> [ReferenceChange] {
         try JSONDecoder().decode(ResearchResponse<[ReferenceChange]>.self, from: await researchData(path: "v1/portfolios/" + id + "/changes", query: [URLQueryItem(name: "own_only", value: String(ownOnly))])).data

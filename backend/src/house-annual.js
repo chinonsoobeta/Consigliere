@@ -4,7 +4,7 @@ import { dateOnly, bulkInsertStatements } from "./normalization.js";
 import { createResolver } from "./identity.js";
 import roster from "./roster.js";
 
-export const ANNUAL_PARSER_VERSION = 2;
+export const ANNUAL_PARSER_VERSION = 3;
 const OWNERS = { SP: "spouse", JT: "joint", DC: "dependent" };
 
 export async function readHouseAnnual(bytes) {
@@ -17,7 +17,7 @@ export function parseAnnualItems(items) {
   let columns, current, closed = false;
   const finish = () => {
     if (!current) return;
-    const parsed = parseHouseAsset(current.asset.join(" "));
+    const parsed = parseHouseAsset(current.asset.join(" ").replace(/\s+\* (Investment Vehicle details|For the complete list)[\s\S]*$/, ""));
     const ownerCode = current.owner.trim();
     const owner = ownerCode ? OWNERS[ownerCode] : "member";
     const value = current.value.join(" ").replace(/\s*-\s*/g," - ").trim();
@@ -36,7 +36,8 @@ export function parseAnnualItems(items) {
     if (first === "Filing Date:") result.filedDate ??= dateOnly(rest);
     if (first === "Filing Type:") result.filingType ??= rest;
     if (closed) continue;
-    if (first.startsWith("* For the complete list of asset type")) { finish(); closed=true; continue; }
+    // The form's closing notes; on some reports "Investment Vehicle details" precedes the code list.
+    if (/^\* (For the complete list of asset type|Investment Vehicle details)/.test(first)) { finish(); closed=true; continue; }
     const valueHeader = cells.find(i=>i.text === "Value of Asset");
     if (columns && !valueHeader && cells.some(i=>i.text==="Asset") && cells.some(i=>i.text==="Owner") && cells.some(i=>i.text==="Date")) { finish(); closed=true; continue; }
     if (valueHeader && cells.some(i=>i.text === "Asset") && cells.some(i=>i.text === "Owner")) {

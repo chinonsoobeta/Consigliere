@@ -22,6 +22,8 @@ final class AppState: ObservableObject {
     @Published private(set) var loadingPoliticianIDs: Set<String> = []
     @Published private(set) var hasAttemptedLoad = false
     @Published private(set) var statements: [PresidentialStatement] = []
+    /// The Congress reference portfolio's most widely held stocks, for Home.
+    @Published private(set) var widelyHeld: [ReferencePosition] = []
     @Published var selectedCountry: Country = .us
     @Published private(set) var countryLoadError: String?
     @Published var tradeFilter = TradeFilter()
@@ -163,7 +165,10 @@ final class AppState: ObservableObject {
             pendingFilings = snapshot.pendingFilings
             hasLoaded = true
             await loadLatest()
-            statements = (try? await providerFactory().statements(ticker: nil)) ?? []
+            async let loadedStatements = try? providerFactory().statements(ticker: nil)
+            async let loadedHoldings = try? providerFactory().portfolio(id: "congress", ownOnly: false, ticker: nil, limit: 8)
+            statements = await loadedStatements ?? []
+            widelyHeld = (await loadedHoldings)?.positions.filter { $0.group == "stocks" } ?? []
             storedLastVisit = Date.now.timeIntervalSince1970
         } catch {
             disclosureLoadError = error.localizedDescription
@@ -213,7 +218,9 @@ final class AppState: ObservableObject {
     }
 
     func loadPortfolioGroups() async throws -> [PortfolioGroup] { try await providerFactory().portfolioGroups() }
-    func loadPortfolio(id: String, ownOnly: Bool) async throws -> ReferencePortfolio { try await providerFactory().portfolio(id: id, ownOnly: ownOnly) }
+    func loadPortfolio(id: String, ownOnly: Bool, ticker: String? = nil, limit: Int? = nil) async throws -> ReferencePortfolio {
+        try await providerFactory().portfolio(id: id, ownOnly: ownOnly, ticker: ticker, limit: limit)
+    }
     func loadPortfolioChanges(id: String, ownOnly: Bool) async throws -> [ReferenceChange] { try await providerFactory().portfolioChanges(id: id, ownOnly: ownOnly) }
     func loadStatements(ticker: String?) async throws -> [PresidentialStatement] { try await providerFactory().statements(ticker: ticker) }
     func loadStatementDetail(id: String) async throws -> StatementDetail { try await providerFactory().statementDetail(id: id, politicians: politicians) }

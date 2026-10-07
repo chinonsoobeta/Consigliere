@@ -1,7 +1,7 @@
 import { annualAnchor } from "./house-annual.js";
 import { stableUUID, bulkInsertStatements } from "./normalization.js";
 
-export const PORTFOLIO_METHOD_VERSION = 2;
+export const PORTFOLIO_METHOD_VERSION = 3;
 
 export function amountBand(text) {
   const numbers = String(text).match(/[\d][\d,]*(?:\.\d+)?/g)?.map((n) => Number(n.replaceAll(",", ""))) ?? [];
@@ -14,7 +14,9 @@ export function amountBand(text) {
 export function assetGroup(row) {
   if (row.asset_type === "OP") return "options";
   if (["GS", "CS", "CB", "MB"].includes(row.asset_type)) return "bonds";
-  if (["MF", "ET"].includes(row.asset_type)) return "funds";
+  // House codes: MF mutual fund, EF exchange-traded fund, ET exchange-traded note. Filers also
+  // file ETFs as stocks ("iShares Russell Mid-Cap ETF (IWR) [ST]"), so the name is checked too.
+  if (["MF", "EF", "ET"].includes(row.asset_type) || /\bETF\b|\bETN\b/.test(row.asset_name ?? "")) return "funds";
   if (!row.ticker) return "unmatched";
   return "stocks";
 }
@@ -34,7 +36,8 @@ export function buildMemberPortfolio(rows, { memberID, frozenAt = null, ownOnly 
     for (const asset of anchor.assets.filter(a => !ownOnly || a.owner === "member")) {
       const band = amountBand(asset.amountRange);
       if (!band || band.midpoint <= 0) continue;
-      const row = { ticker: asset.ticker ?? "", asset_name: asset.name, asset_type: asset.assetType, owner: asset.owner, description: asset.description };
+      // Annual reports nest assets under accounts ("Trust ⇒ Broker ⇒ Apple Inc."); keep the asset itself.
+      const row = { ticker: asset.ticker ?? "", asset_name: asset.name.split("⇒").at(-1).trim() || asset.name, asset_type: asset.assetType, owner: asset.owner, description: asset.description };
       const group = assetGroup(row);
       const key = [group, row.ticker || row.asset_name, row.owner, group === "options" ? row.description ?? row.asset_name : ""].join("|");
       const prior = positions.get(key);
@@ -103,13 +106,15 @@ function change(row, action, note) {
   return { id: row.id, ticker: row.ticker, assetName: row.asset_name, action, filedDate: row.report_date, disclosureID: row.id, sourceURL: row.source_url, note };
 }
 
-export function aggregatePortfolios(portfolios, id = "congress") {
+export function aggregatePortfolios(portfolios, id = "congress", names = new Map()) {
   const positions = new Map();
   for (const portfolio of portfolios) {
     const heldByMember = new Set();
     for (const p of portfolio.positions.filter((p) => p.estimate > 0)) {
       const key = `${p.group}|${p.ticker || p.assetName}`;
-      const total = positions.get(key) ?? { ...p, key, owner: "all", estimate: 0, low: 0, high: 0, membersHolding: 0 };
+      // Members describe the same security differently; prefer the SEC issuer name, then the shortest.
+      const total = positions.get(key) ?? { ...p, key, owner: "all", estimate: 0, low: 0, high: 0, membersHolding: 0, assetName: names.get(p.ticker) ?? p.assetName };
+      if (!names.has(p.ticker) && p.assetName.length < total.assetName.length) total.assetName = p.assetName;
       total.estimate += p.estimate;
       total.low += p.low;
       total.high = total.high == null || p.high == null ? null : total.high + p.high;
@@ -121,7 +126,23 @@ export function aggregatePortfolios(portfolios, id = "congress") {
   }
   return { id, kind: id === "congress" ? "congress" : "committee", members: portfolios.flatMap((p) => p.members), methodVersion: PORTFOLIO_METHOD_VERSION,
     historyStart: portfolios.map((p) => p.historyStart).filter(Boolean).sort()[0] ?? null,
-    frozenAt: null, positions: [...positions.values()].sort((a,b) => b.membersHolding - a.membersHolding || a.ticker.localeCompare(b.ticker)), changes: portfolios.flatMap((p) => p.changes) };
+    frozenAt: null, positions: [...positions.values()].sort((a,b) => b.membersHolding - a.membersHolding || a.ticker.localeCompare(b.ticker)),
+    // Readers see the newest 500; storing every member's history again per committee multiplies writes.
+    changes: portfolios.flatMap((p) => p.changes).sort((a, b) => b.filedDate.localeCompare(a.filedDate) || a.id.localeCompare(b.id)).slice(0, AGGREGATE_CHANGE_LIMIT) };
+}
+
+const AGGREGATE_CHANGE_LIMIT = 500;
+
+// The name filers most often use for each ticker in transaction reports, e.g. "Apple Inc. - Common Stock (AAPL)".
+export function issuerNames(rows) {
+  const counts = new Map();
+  for (const row of rows) {
+    if (!row.ticker || !row.asset_name || row.asset_type === "OP") continue;
+    const byName = counts.get(row.ticker) ?? new Map();
+    byName.set(row.asset_name, (byName.get(row.asset_name) ?? 0) + 1);
+    counts.set(row.ticker, byName);
+  }
+  return new Map([...counts].map(([ticker, byName]) => [ticker, [...byName].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0][0]]));
 }
 
 export async function rebuildPortfolios(db) {
@@ -136,9 +157,10 @@ export async function rebuildPortfolios(db) {
   const grouped = Map.groupBy(disclosures.results, (r) => r.politician_id);
   const portfolios = members.results.map((m) => buildMemberPortfolio(grouped.get(m.bioguide_id) ?? [], { memberID: m.bioguide_id, frozenAt: m.service_end, anchor: annualAnchor(annuals.results,m.bioguide_id,m.service_end) }));
   const sectors = new Map(securities.results.map(s=>[s.ticker,s.sector]));
+  const names = issuerNames(disclosures.results);
   for (const portfolio of portfolios) for (const position of portfolio.positions) position.sector ??= sectors.get(position.ticker) ?? null;
   const groups = Map.groupBy(assignments.results, (r) => r.committee_id);
-  const all = [...portfolios, aggregatePortfolios(portfolios), ...[...groups].map(([id, records]) => aggregatePortfolios(portfolios.filter((p) => records.some((r) => r.member_id === p.members[0])), `committee/${id}`))];
+  const all = [...portfolios, aggregatePortfolios(portfolios, "congress", names), ...[...groups].map(([id, records]) => aggregatePortfolios(portfolios.filter((p) => records.some((r) => r.member_id === p.members[0])), `committee/${id}`, names))];
   const now = new Date().toISOString();
   // One atomic replacement of derived estimates. Bulk JSON keeps the entire Congress
   // rebuild within D1's per-invocation query limit even with hundreds of members.
@@ -155,7 +177,7 @@ export async function rebuildPortfolios(db) {
   return { portfolios: all.length, methodVersion: PORTFOLIO_METHOD_VERSION };
 }
 
-export async function readPortfolio(db, id, ownOnly = false) {
+export async function readPortfolio(db, id, ownOnly = false, { ticker = null, limit = null } = {}) {
   if (ownOnly && id.startsWith("member/")) {
     const rows = await db.prepare("SELECT * FROM disclosures WHERE politician_id = ? AND suppressed_by IS NULL").bind(id.slice(7)).all();
     const member = await db.prepare("SELECT service_end FROM politicians WHERE bioguide_id = ?").bind(id.slice(7)).first();
@@ -164,7 +186,10 @@ export async function readPortfolio(db, id, ownOnly = false) {
   }
   const portfolio = await db.prepare("SELECT * FROM reference_portfolios WHERE id = ?").bind(id).first();
   if (!portfolio) return null;
-  const positions = await db.prepare("SELECT * FROM reference_positions WHERE portfolio_id = ? ORDER BY members_holding DESC, estimate DESC").bind(id).all();
+  // Home shows the widest holdings and a stock page needs one row; neither should download every position.
+  const positions = await db.prepare(`SELECT * FROM reference_positions WHERE portfolio_id = ? AND estimate > 0
+    ${ticker ? "AND ticker = ?" : ""} ORDER BY members_holding DESC, estimate DESC ${limit ? "LIMIT ?" : ""}`)
+    .bind(id, ...(ticker ? [ticker] : []), ...(limit ? [limit] : [])).all();
   return { id, kind: portfolio.kind, methodVersion: portfolio.method_version, builtAt: portfolio.built_at,
     historyStart: portfolio.history_start, frozenAt: portfolio.frozen_at, anchorAsOf: portfolio.anchor_as_of, anchorFiledDate: portfolio.anchor_filed_date, anchorSourceURL: portfolio.anchor_source_url, members: JSON.parse(portfolio.members),
     positions: positions.results.map((p) => ({ key: p.position_key, ticker: p.ticker, assetName: p.asset_name, group: p.asset_group, owner: p.owner, estimate: p.estimate, low: p.low, high: p.high,

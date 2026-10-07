@@ -145,4 +145,6 @@ test('annual parsing stops at Schedule B even when no closing footnote separates
  const report=await readHouseAnnual(await readFile(new URL('./fixtures/10075834-annual.pdf',import.meta.url)));
  assert.deepEqual(report.warnings,[]);assert.equal(report.assets.length,335);assert.equal(report.name,'Hon. Kevin Hern');
  assert.ok(report.assets.every(asset=>asset.name && asset.owner && asset.amountRange));
+ // A page's closing notes must not run into the last asset and hide its type code.
+ assert.ok(report.assets.every(asset=>asset.assetType && !/Investment Vehicle details|asset type abbreviations/.test(asset.name)));
 });

@@ -131,15 +131,19 @@ struct PoliticianProfileView: View {
                     let tickerLayout = dynamicTypeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
                         : AnyLayout(HStackLayout(spacing: 6))
+                    ScrollView(.horizontal, showsIndicators: false) {
                     tickerLayout {
                         ForEach(stats.topSymbols, id: \.self) { symbol in
                             NavigationLink(value: StockRoute(symbol: symbol)) {
                                 Text(verbatim: symbol).font(.caption.monospaced().weight(.bold))
+                                    .lineLimit(1).fixedSize()
                                     .padding(.horizontal, 8).padding(.vertical, 4)
                                     .background(Color.secondary.opacity(0.12), in: Capsule())
                             }.buttonStyle(.borderless)
                         }
                     }
+                    }
+                    .scrollDisabled(dynamicTypeSize.isAccessibilitySize)
                 }
             }
         } header: {
@@ -154,7 +158,11 @@ struct PoliticianProfileView: View {
         if let coverage,
            let earliest = coverage.earliest.flatMap(DisclosureDates.day),
            let latest = coverage.latest.flatMap(DisclosureDates.day) {
-            Text("profile.coverage \(coverage.records) \(earliest, format: DisclosureDates.style()) \(latest, format: DisclosureDates.style())")
+            if DisclosureDates.calendar.isDate(earliest, inSameDayAs: latest) {
+                Text("profile.coverage.oneDay \(coverage.records) \(earliest, format: DisclosureDates.style())")
+            } else {
+                Text("profile.coverage \(coverage.records) \(earliest, format: DisclosureDates.style()) \(latest, format: DisclosureDates.style())")
+            }
         }
     }
 

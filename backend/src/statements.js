@@ -56,10 +56,12 @@ export function ruleTags(body, securities = []) {
       if (quote) tags.push({ kind, value, quote });
     }
   }
+  const lower = body.toLowerCase();
   for (const security of securities) {
     // Full issuer names only; short tickers and generic company words create false positives.
     const name = security.name.trim();
-    if (name.length < 5) continue;
+    // A substring check rules out nearly every name before the word-boundary regex runs.
+    if (name.length < 5 || !lower.includes(name.toLowerCase())) continue;
     const quote = body.match(new RegExp(`\\b${escape(name)}\\b`, "i"))?.[0];
     if (quote) tags.push({ kind: "company", value: security.ticker, quote });
   }

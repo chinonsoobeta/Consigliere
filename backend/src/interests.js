@@ -38,10 +38,21 @@ export function lordsInterests(memberRecord) {
   }));
 }
 
+const normalizeIssuer = (value) => plainText(value).replace(/\([^)]*\)/g, "").toLowerCase().normalize("NFKD").replace(/\b(inc|incorporated|corp|corporation|plc|limited|ltd|common stock|shares)\b\.?/g, "").replace(/[^a-z0-9]/g, "");
+
+// Normalizing ten thousand SEC names once per sync instead of once per declared interest.
+export function securityIndex(securities) {
+  const index = new Map();
+  for (const security of securities) {
+    const key = normalizeIssuer(security.name);
+    index.set(key, [...(index.get(key) ?? []), security]);
+  }
+  return index;
+}
+
 export function matchSecurity(name, securities) {
-  const normalize = (value) => plainText(value).replace(/\([^)]*\)/g, "").toLowerCase().normalize("NFKD").replace(/\b(inc|incorporated|corp|corporation|plc|limited|ltd|common stock|shares)\b\.?/g, "").replace(/[^a-z0-9]/g, "");
-  const key = normalize(name);
-  const exact = securities.filter((s) => normalize(s.name) === key);
+  const index = securities instanceof Map ? securities : securityIndex(securities);
+  const exact = index.get(normalizeIssuer(name)) ?? [];
   if (exact.length === 1) return { ticker: exact[0].ticker, exchange: exact[0].exchange, figi: exact[0].figi, confidence: 1, reviewStatus: "matched" };
   return { ticker: null, exchange: null, figi: null, confidence: 0, reviewStatus: exact.length > 1 ? "needs-review" : "unmatched" };
 }
@@ -110,7 +121,7 @@ export async function writeMembers(db,members) {
 }
 
 export async function writeInterests(db,interests) {
-  const securities=(await db.prepare("SELECT ticker,name,exchange,figi FROM securities").all()).results;
+  const securities=securityIndex((await db.prepare("SELECT ticker,name,exchange,figi FROM securities").all()).results);
   const rows=interests.map(r=>{
     const match=matchSecurity(r.organisation,securities);
     return [r.id,r.memberID,r.country,r.category,r.organisation,match.exchange,match.ticker,match.figi,r.thresholdText,r.action,r.owner,r.registeredAt,r.effectiveAt,r.publishedAt,r.endedAt,r.sourceURL,JSON.stringify(r.raw),INTEREST_PARSER_VERSION,r.confidence,match.reviewStatus,match.confidence];

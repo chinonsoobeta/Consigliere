@@ -712,10 +712,14 @@ async function extractHouseReports(env) {
         OR (x.status IN ('extracted', 'empty', 'needs-review') AND x.parser_version < ?)
         OR (x.status = 'failed' AND x.attempts < ?)
         OR (x.status = 'running' AND x.claimed_at < ? AND x.attempts < ?)
+        -- The Clerk's firewall sometimes refuses Cloudflare's addresses for a while; exhausted
+        -- reports get one more try a day instead of being dropped for good.
+        OR (x.status IN ('failed', 'running') AND x.claimed_at < ?)
       )
       ORDER BY sf.disclosure_date DESC, sf.doc_id DESC LIMIT ?
     `).bind(
       HOUSE_PTR_PARSER_VERSION, HOUSE_PTR_MAX_ATTEMPTS, leaseExpiredBefore, HOUSE_PTR_MAX_ATTEMPTS,
+      new Date(started - 24 * 60 * 60_000).toISOString(),
       clamp(Number(env.HOUSE_PTR_BATCH) || HOUSE_PTR_BATCH, 1, 100)
     ).all();
     // Politician IDs reference the politicians table, so the roster must exist before writes.

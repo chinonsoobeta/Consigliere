@@ -285,6 +285,8 @@ struct PendingFiling: Identifiable, Hashable, Codable {
 enum Country: String, CaseIterable, Identifiable, Codable {
     case us, uk, ca, au
     var id: String { rawValue }
+    /// Canada and Australia need written reuse permission before their collectors can be built.
+    static let available: [Country] = [.us, .uk]
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "country.\(rawValue)") }
     var chambers: [Chamber] {
         switch self { case .us: [.house,.senate]; case .uk: [.commons,.lords]; case .ca: [.commons,.senate]; case .au: [.representatives,.senate] }

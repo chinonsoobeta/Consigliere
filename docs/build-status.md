@@ -59,6 +59,23 @@ The simulator review verified these user flows:
 
 Accessibility-tree inspection confirms the exposed labels and separate stock points; it is **not a spoken VoiceOver test**. Accessibility Inspector did not produce a confirmed audit result. Physical-device VoiceOver order and a signed-device smoke test remain unverified.
 
+## Review pass — 6 October 2026
+
+An independent review checked the implementation against the plan and in the simulator against a fully synced local Worker. The engineering was sound and its notes accurate. The fixes below address usefulness and presentation, plus a few data defects the review found.
+
+- **Home** now answers "what is Congress buying?" first. The summary is a 2×2 grid, or "You're all caught up" when there is nothing new. It is followed by Following, Notable, **Most bought / Most sold in the last 30 days** (distinct members per listed ticker, by filing date) and **Most widely held** (the Congress reference portfolio's top positions). The pulse, new filings, late filings (hidden when there are none), most active members with trade counts, and White House items follow. White House items are limited to those that name a company or sector. Each "See all" link names its destination.
+- **Notable** prefers listed securities over private funds of the same band.
+- **"Busier than usual"** compares the last complete week with the median of earlier weeks and needs six active weeks of history. Before this, it fired on a partial week or a near-empty history.
+- **Stock pages** open with 12-month buys, sells, members trading and estimated holders. A diverging monthly buy/sell chart replaces the filed-versus-traded scatter. Members are sorted by latest trade, long trade lists collapse after 15 rows, and statements use the shared row.
+- **Activity charts** begin at the first available trade (6–24 months), so short histories no longer render as an empty two-year axis.
+- **Reference portfolios** have a Holdings/Changes switch and formatted provenance dates. Rows are compact, showing the member count (aggregate) or a `$15K–$50K` band (member). Long groups collapse. The sector chart is shown only when at least half the stocks are classified, and committees moved to a drill-down. Aggregate holdings use the most common issuer name per ticker instead of the first filer's account path ("150 Main Street Trust ⇒ …"). Exchange-traded funds (House code `EF`, or an "ETF" name filed as a stock) are grouped as funds. The method version is now 3.
+- **Annual reports**: the form's "Investment Vehicle details" footer no longer runs into the last asset on a page and hides its type code (parser version 3).
+- **Statement detail** formats dates and truncates long bodies behind "Read the full text". It localizes tag kinds, moves corrections into a per-tag menu and no longer shows model or prompt identifiers.
+- **Smaller fixes**: Canada and Australia are hidden from pickers while their collectors are gated. Ticker chips no longer wrap mid-symbol, and non-ticker assets are not set in the monospaced ticker face. A single-day coverage range reads "filed on". The stock page's trade list is no longer labelled "Trades in this filing".
+- **Backend**: the portfolio route accepts `ticker` and `limit`. Aggregate change logs are capped at 500. UK issuer matching and statement tagging use an index and a substring pre-check instead of a regex per security. Correction submissions return 429 when a statement already has 25 pending reports. Failed or stuck House PTR extractions are retried once a day instead of being abandoned after three attempts.
+
+Tests: backend 53 passed; iOS 31 passed, including new cases for ticker flows, the weekly comparison, adaptive histogram length and fund grouping.
+
 ## Remaining gates and limits
 
 1. **Canada/Australia:** the owner confirmed no written permission on 6 October. Four concrete requests are in [permission-requests.md](permission-requests.md); they remain prepared and unsent. Canadian registry/Senate adapters and Australian PDF/scan/alteration adapters remain unbuilt. Their public endpoints return `permission_pending`. A permission flag alone cannot provide these collectors.

@@ -9,34 +9,61 @@ struct StatementDetailView: View {
     @State private var reportTag: StatementTag?
     @State private var reason = ""
     @State private var reported = false
+    @State private var showsFullText = false
 
     var body: some View {
         List {
             Section {
-                Text(verbatim: statement.title).font(.title2.bold())
-                Text(verbatim: statement.kind).font(.caption).foregroundStyle(.secondary)
-                Text(verbatim: statement.publishedAt).font(.caption)
-                if let signed = statement.signedAt { Text("statement.signed \(signed)") }
-                if let number = statement.documentNumber { Text(verbatim: number).font(.caption.monospaced()) }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(verbatim: statement.title).font(.title3.bold())
+                    HStack(spacing: 4) {
+                        Text(verbatim: statement.kind)
+                        if let published = DisclosureDates.day(statement.publishedAt) {
+                            Text(verbatim: "·")
+                            Text(published, format: DisclosureDates.style())
+                        }
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
+                    if let signed = statement.signedAt.flatMap(DisclosureDates.day) {
+                        Text("statement.signed \(signed.formatted(DisclosureDates.style()))").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 Text(highlightedBody)
+                    .font(.callout)
+                    .lineLimit(showsFullText ? nil : 8)
+                if !showsFullText && statement.body.count > 600 {
+                    Button("statement.readFull") { showsFullText = true }
+                }
                 Link("event.openSource", destination: statement.sourceURL)
                 if let confirmation = statement.confirmationURL { Link("statement.confirmation", destination: confirmation) }
             }
-            Section("statement.tags") {
-                ForEach(statement.tags) { tag in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(verbatim: "\(tag.value) · \(tag.kind)").font(.headline)
-                        Text(verbatim: "“\(tag.quote)”").font(.subheadline)
-                        Text(verbatim: "\(tag.model) · \(tag.promptVersion)").font(.caption2).foregroundStyle(.secondary)
-                        Button("statement.report") { reportTag = tag; reason = ""; reported = false; reportError = nil }
+            if !statement.tags.isEmpty {
+                Section {
+                    ForEach(statement.tags) { tag in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(verbatim: tag.value).font(.subheadline.weight(.semibold))
+                                Text(LocalizedStringKey(stringLiteral: "statement.kind.\(tag.kind)")).font(.caption).foregroundStyle(.secondary)
+                                Spacer()
+                                Menu {
+                                    Button("statement.report") { reportTag = tag; reason = ""; reported = false; reportError = nil }
+                                } label: { Image(systemName: "ellipsis.circle").foregroundStyle(.secondary) }
+                                .accessibilityLabel(Text("statement.report"))
+                            }
+                            Text(verbatim: "“\(tag.quote)”").font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                        }
                     }
-                }
+                } header: { Text("statement.tags") } footer: { Text("statement.tagsFooter") }
             }
             if let error { Text(verbatim: error).foregroundStyle(.orange) }
-            if let detail {
+            if let detail, !detail.holdings.isEmpty || !detail.trades.isEmpty {
                 Section("statement.holdings") {
                     ForEach(detail.holdings) { holding in
-                        NavigationLink(value: StockRoute(symbol: holding.ticker)) { Text("statement.holdingCount \(holding.ticker) \(holding.membersHolding)") }
+                        NavigationLink(value: StockRoute(symbol: holding.ticker)) {
+                            LabeledContent {
+                                Text("portfolio.memberCount \(holding.membersHolding)").monospacedDigit()
+                            } label: { Text(verbatim: holding.ticker).font(.headline.monospaced()) }
+                        }
                     }
                     Text("portfolio.estimated").font(.caption)
                 }
@@ -49,6 +76,7 @@ struct StatementDetailView: View {
             }
         }
         .navigationTitle("statement.title")
+        .navigationBarTitleDisplayMode(.inline)
         .task { do { detail = try await appState.loadStatementDetail(id: statement.id) } catch { self.error = error.localizedDescription } }
         .sheet(item: $reportTag) { tag in
             NavigationStack {
