@@ -26,20 +26,36 @@ struct MembersView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            ThemedList {
                 Section {
                     Picker("countries.members", selection: $appState.selectedCountry) {
                         ForEach(Country.available) { Text($0.label).tag($0) }
                     }
-                    if appState.selectedCountry == .us { NavigationLink("portfolio.congress") { ReferencePortfolioView(portfolioID: "congress") } }
+                    if appState.selectedCountry == .us {
+                        NavigationLink { ReferencePortfolioView(portfolioID: "congress") } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "chart.pie.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(ConsigliereTheme.accent)
+                                    .frame(width: 44, height: 44)
+                                    .background(ConsigliereTheme.accentSoft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("portfolio.congress").font(ConsigliereTheme.display(.headline))
+                                    Text("portfolio.estimated").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                     else { NavigationLink("interests.title") { DeclaredInterestsView(country: appState.selectedCountry) } }
-                    if let error = appState.countryLoadError { Text(verbatim: error).font(.caption).foregroundStyle(.orange) }
+                    if let error = appState.countryLoadError { Text(verbatim: error).font(.caption).foregroundStyle(ConsigliereTheme.warning) }
                 }
                 if appState.disclosureLoadError != nil {
                     Section {
                         HStack {
                             Label("disclosures.loadError", systemImage: "exclamationmark.triangle.fill")
-                                .font(.subheadline).foregroundStyle(.orange)
+                                .font(.subheadline).foregroundStyle(ConsigliereTheme.warning)
                             Spacer()
                             Button("common.retry") { Task { await appState.load(force: true) } }.buttonStyle(.bordered)
                         }
@@ -48,14 +64,14 @@ struct MembersView: View {
                     Section { ProgressView("common.loading").frame(maxWidth: .infinity) }
                 }
                 if !following.isEmpty {
-                    Section("members.following") { rows(following) }
+                    Section(themed: "members.following") { rows(following) }
                 }
                 if !active.isEmpty {
-                    Section { rows(active) } header: { Text("members.active \(active.count)") }
+                    Section { rows(active) } header: { SectionTitle(Text("members.active \(active.count)")) }
                 }
                 Section { rows(others) } header: {
-                    if appState.selectedCountry == .us { Text("members.others \(others.count)") }
-                    else { Text("members.all \(others.count)") }
+                    if appState.selectedCountry == .us { SectionTitle(Text("members.others \(others.count)")) }
+                    else { SectionTitle(Text("members.all \(others.count)")) }
                 } footer: {
                     if appState.selectedCountry == .us { Text("search.rosterSource") }
                     else { Text("interests.method") }
@@ -64,13 +80,12 @@ struct MembersView: View {
                     Section {
                         ForEach(unmatched) { UnmatchedFilerRow(filer: $0) }
                     } header: {
-                        Text("search.unmatched \(unmatched.count)")
+                        SectionTitle(Text("search.unmatched \(unmatched.count)"))
                     } footer: {
                         Text("search.unmatched.footer")
                     }
                 }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("tab.members")
             .searchable(text: $query, prompt: "members.prompt")
             .toolbar { filterMenu }

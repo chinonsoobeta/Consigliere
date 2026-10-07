@@ -372,3 +372,11 @@
 "statement.kind.commodity" = "Materia prima";
 "statement.kind.policy" = "Política";
 "statement.tagsFooter" = "Cada etiqueta cita las palabras exactas en que se basa. Informa si una etiqueta es incorrecta.";
+
+"home.hero.buying" = "El Congreso está *comprando*.";
+"home.hero.selling" = "El Congreso está *vendiendo*.";
+"home.hero.mixed" = "Compras y ventas, *a la par*.";
+"home.hero.quiet" = "Un periodo *tranquilo*.";
+"home.hero.week %lld %lld" = "^[%lld operación](inflect: true) de ^[%lld miembro](inflect: true), presentadas en los últimos siete días.";
+"home.hero.buys" = "Compras";
+"home.hero.sells" = "Ventas";

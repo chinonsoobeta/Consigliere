@@ -18,7 +18,7 @@ struct ReferencePortfolioView: View {
     private var isAggregate: Bool { !portfolioID.hasPrefix("member/") }
 
     var body: some View {
-        List {
+        ThemedList {
             Section {
                 Picker("portfolio.view", selection: $mode) {
                     Text("portfolio.holdings").tag(Mode.holdings)
@@ -30,7 +30,7 @@ struct ReferencePortfolioView: View {
             }
             if let error {
                 Section {
-                    Text(verbatim: error).foregroundStyle(.orange)
+                    Text(verbatim: error).foregroundStyle(ConsigliereTheme.warning)
                     Button("common.retry") { Task { await load() } }
                 }
             }
@@ -100,7 +100,7 @@ struct ReferencePortfolioView: View {
                         Button("portfolio.showAll \(positions.count)") { expandedGroups.insert(group) }
                     }
                 } header: {
-                    Text(LocalizedStringKey(stringLiteral: "portfolio.group.\(group)"))
+                    SectionTitle(LocalizedStringKey(stringLiteral: "portfolio.group.\(group)"))
                 }
             }
         }
@@ -121,7 +121,7 @@ struct ReferencePortfolioView: View {
                 .chartXAxis(.hidden)
                 .frame(height: CGFloat(counts.count) * 26 + 10)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-            } header: { Text("portfolio.sectors") } footer: {
+            } header: { SectionTitle("portfolio.sectors") } footer: {
                 Text("portfolio.sectorsCoverage \(known.count) \(stocks.count)")
             }
         }
@@ -175,7 +175,7 @@ private struct CommitteePortfolioList: View {
     let groups: [PortfolioGroup]
 
     var body: some View {
-        List {
+        ThemedList {
             Section {
                 ForEach(groups) { group in
                     NavigationLink(group.title ?? group.id) {

@@ -50,7 +50,7 @@ struct MemberFilingCharts: View {
     }
 
     var body: some View {
-        Section("charts.activity") {
+        Section(themed: "charts.activity") {
             Chart(activity) { bucket in
                 BarMark(x: .value("Month", bucket.month, unit: .month, calendar: TradeAnalytics.calendar), y: .value("Trades", bucket.count))
                     .foregroundStyle(by: .value("Type", bucket.type == .purchase ? String(localized: "trade.short.purchase", locale: locale) : String(localized: "trade.short.sale", locale: locale)))
@@ -73,12 +73,12 @@ struct MemberFilingCharts: View {
                 }
             }
         }
-        Section("charts.delay") {
+        Section(themed: "charts.delay") {
             Chart(delays) { record in
                 PointMark(x: .value("Filed", record.filing.filedDate), y: .value("Days", min(record.days, 120)))
-                    .foregroundStyle(record.days > 45 ? Color.orange : ConsigliereTheme.accent)
+                    .foregroundStyle(record.days > 45 ? ConsigliereTheme.warning : ConsigliereTheme.accent)
                     .annotation(position: .top) { if record.days > 120 { Text("↑ \(record.days)").font(.caption2) } }
-                RuleMark(y: .value("Deadline", 45)).foregroundStyle(.orange).lineStyle(StrokeStyle(dash: [4]))
+                RuleMark(y: .value("Deadline", 45)).foregroundStyle(ConsigliereTheme.warning).lineStyle(StrokeStyle(dash: [4]))
             }
             .chartYScale(domain: 0...120)
             .frame(height: dynamicTypeSize.isAccessibilitySize ? 280 : 180)

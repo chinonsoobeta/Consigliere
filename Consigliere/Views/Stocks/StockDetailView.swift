@@ -20,16 +20,32 @@ struct StockDetailView: View {
     private var name: String { trades.first?.assetName ?? symbol }
 
     var body: some View {
-        List {
+        ThemedList {
             if let error {
                 Section {
-                    Text(verbatim: error).foregroundStyle(.orange)
+                    Text(verbatim: error).foregroundStyle(ConsigliereTheme.warning)
                     Button("common.retry") { Task { await load() } }
                 }
             }
             Section {
+                HStack(spacing: 14) {
+                    TickerTile(symbol: symbol, size: 56)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: symbol).font(.title2.bold().monospaced())
+                        if name != symbol {
+                            Text(verbatim: SecurityLabel.issuer(name, symbol: symbol))
+                                .font(ConsigliereTheme.display(.headline, weight: .regular))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+            Section {
                 VStack(alignment: .leading, spacing: 10) {
-                    if name != symbol { Text(verbatim: name).font(.subheadline).foregroundStyle(.secondary) }
                     HStack(alignment: .top, spacing: 0) {
                         stat(lastYear.filter { $0.type == .purchase }.count, "stock.stat.buys", ConsigliereTheme.positive)
                         stat(lastYear.filter { $0.type == .sale }.count, "stock.stat.sells", ConsigliereTheme.negative)
@@ -43,12 +59,12 @@ struct StockDetailView: View {
             if !trades.isEmpty {
                 Section {
                     activityChart
-                } header: { Text("stock.activity") } footer: { Text("stock.timelineMethod") }
+                } header: { SectionTitle("stock.activity") } footer: { Text("stock.timelineMethod") }
             } else if loaded && error == nil {
                 Section { Text("stock.noTrades").foregroundStyle(.secondary) }
             }
             if !members.isEmpty {
-                Section("stock.members") {
+                Section(themed: "stock.members") {
                     ForEach(members, id: \.politician.id) { entry in
                         NavigationLink(value: entry.politician) {
                             HStack {
@@ -65,13 +81,13 @@ struct StockDetailView: View {
                 }
             }
             if !statements.isEmpty {
-                Section("statement.mentions \(statements.count)") {
+                Section {
                     ForEach(statements) { statement in NavigationLink(value: statement) { StatementRow(statement: statement) } }
-                }
+                } header: { SectionTitle(Text("statement.mentions \(statements.count)")) }
             }
             if symbol.hasPrefix("LSE:") || !interests.isEmpty {
-                Section("stock.ukHolders") {
-                    if let interestError { Text(verbatim: interestError).foregroundStyle(.orange) }
+                Section(themed: "stock.ukHolders") {
+                    if let interestError { Text(verbatim: interestError).foregroundStyle(ConsigliereTheme.warning) }
                     else if interests.isEmpty { Text("interests.empty") }
                     ForEach(interests) { interest in
                         if let member = appState.politicians.first(where: { $0.id == interest.memberID }) { NavigationLink(value: member) { MemberHeaderRow(politician: member) } }
@@ -82,7 +98,7 @@ struct StockDetailView: View {
                 }
             }
             if !trades.isEmpty {
-                Section("stock.trades") {
+                Section(themed: "stock.trades") {
                     ForEach(showsAllTrades ? trades : Array(trades.prefix(15))) { trade in NavigationLink(value: trade) { TradeRow(trade: trade) } }
                     if trades.count > 15 && !showsAllTrades { Button("portfolio.showAll \(trades.count)") { showsAllTrades = true } }
                 }
@@ -92,12 +108,13 @@ struct StockDetailView: View {
             } footer: { Text("stock.footer") }
         }
         .navigationTitle(Text(verbatim: symbol))
+        .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }
 
     private func stat(_ value: Int, _ label: LocalizedStringKey, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(value, format: .number).font(.title3.bold().monospacedDigit()).foregroundStyle(value == 0 ? .secondary : color)
+            Text(value, format: .number).font(.title.bold().monospacedDigit()).foregroundStyle(value == 0 ? .secondary : color)
             Text(label).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

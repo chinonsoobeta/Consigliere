@@ -15,7 +15,7 @@ struct MarketsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            ThemedList {
                 if appState.instruments.isEmpty {
                     Section {
                         SourceAwareEmptyView(
@@ -49,7 +49,6 @@ struct MarketsView: View {
                     }
                 }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("tab.markets")
             .searchable(text: $query, prompt: "search.prompt")
             .refreshable { await appState.load(force: true) }

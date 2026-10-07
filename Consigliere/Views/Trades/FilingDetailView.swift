@@ -8,7 +8,7 @@ struct FilingDetailView: View {
     private var politician: Politician? { appState.politician(id: filing.politicianID) }
 
     var body: some View {
-        List {
+        ThemedList {
             Section {
                 if let politician {
                     NavigationLink(value: politician) { MemberHeaderRow(politician: politician) }
@@ -21,7 +21,7 @@ struct FilingDetailView: View {
                 LabeledContent("filing.tradeCount") { Text(filing.trades.count, format: .number) }
                 if filing.isLate {
                     LabeledContent("filing.longestLag") {
-                        Text("study.days \(filing.maxLagDays)").foregroundStyle(.orange)
+                        Text("study.days \(filing.maxLagDays)").foregroundStyle(ConsigliereTheme.warning)
                     }
                 }
                 Link(destination: filing.sourceURL) { Label("filing.openOriginal", systemImage: "doc.richtext") }
@@ -33,13 +33,12 @@ struct FilingDetailView: View {
                     NavigationLink(value: StockRoute(symbol: symbol)) { Text("stock.open \(symbol)") }
                 }
             }
-            Section("filing.trades") {
+            Section(themed: "filing.trades") {
                 ForEach(filing.bySize) { trade in
                     NavigationLink(value: trade) { TradeRow(trade: trade, showsMember: false) }
                 }
             }
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("filing.title")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

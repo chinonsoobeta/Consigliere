@@ -41,8 +41,8 @@ struct Politician: Identifiable, Hashable, Codable {
         if let hex = partyHex, let value = UInt32(hex, radix: 16) { return Color(red: Double((value >> 16) & 255)/255, green: Double((value >> 8) & 255)/255, blue: Double(value & 255)/255) }
         if nation != .us { return .secondary }
         return switch partyAbbreviation {
-        case "D": .blue
-        case "R": .red
+        case "D": ConsigliereTheme.democrat
+        case "R": ConsigliereTheme.republican
         default: .secondary
         }
     }
@@ -60,7 +60,7 @@ enum DisclosureTransactionType: String, Codable, CaseIterable {
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "trade.\(rawValue)") }
     /// One-word pill label: Buy, Sell, Exchange.
     var shortLabel: LocalizedStringKey { LocalizedStringKey(stringLiteral: "trade.short.\(rawValue)") }
-    var color: Color { self == .purchase ? ConsigliereTheme.positive : (self == .sale ? ConsigliereTheme.negative : .blue) }
+    var color: Color { self == .purchase ? ConsigliereTheme.positive : (self == .sale ? ConsigliereTheme.negative : ConsigliereTheme.accent) }
 
     /// Past-tense headline such as "Sold MSFT".
     func headline(_ symbol: String) -> Text {

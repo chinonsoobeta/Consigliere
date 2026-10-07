@@ -36,7 +36,7 @@ struct TradesView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            List {
+            ThemedList {
                 Section {
                     Picker("trades.filter", selection: $filter) {
                         ForEach(TransactionFilter.allCases) { Text($0.label).tag($0) }
@@ -84,11 +84,10 @@ struct TradesView: View {
                             NavigationLink(value: trade) { TradeRow(trade: trade) }
                         }
                     } header: {
-                        Text("trades.filedOn \(group.day, format: DisclosureDates.style(.long))")
+                        SectionTitle(Text("trades.filedOn \(group.day, format: DisclosureDates.style(.long))"))
                     }
                 }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("tab.trades")
             .searchable(text: $query, prompt: "trades.searchPrompt")
             .onReceive(appState.$tradeFilter) { _ in path = NavigationPath(); filter = .all; query = "" }

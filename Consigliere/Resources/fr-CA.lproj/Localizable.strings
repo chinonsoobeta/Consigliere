@@ -372,3 +372,11 @@
 "statement.kind.commodity" = "Matière première";
 "statement.kind.policy" = "Politique";
 "statement.tagsFooter" = "Chaque étiquette cite les mots exacts sur lesquels elle repose. Signalez une étiquette erronée.";
+
+"home.hero.buying" = "Le Congrès *achète*.";
+"home.hero.selling" = "Le Congrès *vend*.";
+"home.hero.mixed" = "Achats et ventes, *à égalité*.";
+"home.hero.quiet" = "Une période *calme*.";
+"home.hero.week %lld %lld" = "^[%lld transaction](inflect: true) de ^[%lld membre](inflect: true), déposées ces sept derniers jours.";
+"home.hero.buys" = "Achats";
+"home.hero.sells" = "Ventes";

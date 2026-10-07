@@ -4,6 +4,8 @@ import SwiftUI
 struct ConsigliereApp: App {
     @StateObject private var appState = AppState()
 
+    init() { ConsigliereTheme.configureBars() }
+
     var body: some Scene {
         WindowGroup {
             RootTabView()

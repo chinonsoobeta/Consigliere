@@ -16,7 +16,7 @@ struct PoliticianProfileView: View {
     }
 
     private var usProfile: some View {
-        List {
+        ThemedList {
             Section { header }
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 4))
@@ -24,7 +24,7 @@ struct PoliticianProfileView: View {
                 Section {
                     HStack {
                         Label("disclosures.loadError", systemImage: "exclamationmark.triangle.fill")
-                            .font(.subheadline).foregroundStyle(.orange)
+                            .font(.subheadline).foregroundStyle(ConsigliereTheme.warning)
                         Spacer()
                         Button("common.retry") { Task { await appState.loadDisclosures(for: politician) } }
                             .buttonStyle(.bordered)
@@ -42,19 +42,18 @@ struct PoliticianProfileView: View {
                 } else { Text("portfolio.unavailable") }
                 NavigationLink("portfolio.seeAll") { ReferencePortfolioView(portfolioID: "member/" + politician.id) }
                 NavigationLink("portfolio.method") { MethodologyView() }
-            } header: { Text("portfolio.member") } footer: { Text("portfolio.estimated") }
+            } header: { SectionTitle("portfolio.member") } footer: { Text("portfolio.estimated") }
             if !pendingFilings.isEmpty {
                 Section {
                     ForEach(pendingFilings) { PendingFilingRow(filing: $0) }
                 } header: {
-                    Text("pending.title \(pendingFilings.count)")
+                    SectionTitle(Text("pending.title \(pendingFilings.count)"))
                 } footer: {
                     Text("pending.subtitle")
                 }
             }
             tradesSection
         }
-        .listStyle(.insetGrouped)
         .navigationTitle(Text(verbatim: politician.name))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
@@ -68,11 +67,13 @@ struct PoliticianProfileView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 16) {
-                PoliticianAvatar(politician: politician, size: 76)
+                PoliticianAvatar(politician: politician, size: 84)
+                    .overlay { Circle().stroke(politician.partyColor, lineWidth: 2) }
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(verbatim: politician.name).font(.title2.bold())
+                    Text(verbatim: politician.name).font(ConsigliereTheme.display(.title, weight: .medium))
+                        .fixedSize(horizontal: false, vertical: true)
                     let metadataLayout = dynamicTypeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
                         : AnyLayout(HStackLayout(spacing: 6))
@@ -97,12 +98,12 @@ struct PoliticianProfileView: View {
             appState.toggleFollow(politician)
         } label: {
             Label(following ? "profile.following" : "profile.follow", systemImage: following ? "checkmark" : "plus")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
+                .font(.headline)
+                .foregroundStyle(following ? Color.primary : ConsigliereTheme.onAccent)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(following ? ConsigliereTheme.raised : ConsigliereTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.bordered)
-        .tint(following ? .secondary : ConsigliereTheme.accent)
-        .controlSize(.large)
+        .buttonStyle(.plain)
     }
 
     private func statsSection(_ stats: TradingStats) -> some View {
@@ -120,7 +121,7 @@ struct PoliticianProfileView: View {
                         if let lag = stats.medianLagDays { Text("study.days \(lag)") } else { Text(verbatim: "—") }
                     }
                     StatTile(label: "profile.stat.late") {
-                        Text(stats.lateCount, format: .number).foregroundStyle(stats.lateCount > 0 ? .orange : .primary)
+                        Text(stats.lateCount, format: .number).foregroundStyle(stats.lateCount > 0 ? ConsigliereTheme.warning : .primary)
                     }
                 }
             }
@@ -138,7 +139,7 @@ struct PoliticianProfileView: View {
                                 Text(verbatim: symbol).font(.caption.monospaced().weight(.bold))
                                     .lineLimit(1).fixedSize()
                                     .padding(.horizontal, 8).padding(.vertical, 4)
-                                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                                    .background(ConsigliereTheme.accentSoft, in: Capsule())
                             }.buttonStyle(.borderless)
                         }
                     }
@@ -147,7 +148,7 @@ struct PoliticianProfileView: View {
                 }
             }
         } header: {
-            Text("profile.atAGlance")
+            SectionTitle("profile.atAGlance")
         } footer: {
             coverageFooter
         }
@@ -167,7 +168,7 @@ struct PoliticianProfileView: View {
     }
 
     private var tradesSection: some View {
-        Section("politician.disclosures") {
+        Section(themed: "politician.disclosures") {
             if trades.isEmpty {
                 if appState.loadingPoliticianIDs.contains(politician.id) {
                     ProgressView("politician.loading").frame(maxWidth: .infinity)
@@ -193,7 +194,7 @@ private struct StatTile<Value: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            value.font(.title3.bold().monospacedDigit())
+            value.font(.title.bold().monospacedDigit())
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

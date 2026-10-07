@@ -11,7 +11,7 @@ struct TradeDetailView: View {
     private var memberName: String { politician?.name ?? trade.representative }
 
     var body: some View {
-        List {
+        ThemedList {
             Section { header }
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 4))
@@ -35,15 +35,15 @@ struct TradeDetailView: View {
                 LabeledContent("event.transaction") { Text(trade.transactionDate, format: DisclosureDates.style(.long)) }
                 LabeledContent("event.filed") { Text(trade.filedDate, format: DisclosureDates.style(.long)) }
                 LabeledContent("trade.lag") {
-                    Text("study.days \(trade.disclosureLagDays)").foregroundStyle(trade.isLate ? .orange : .primary)
+                    Text("study.days \(trade.disclosureLagDays)").foregroundStyle(trade.isLate ? ConsigliereTheme.warning : .primary)
                 }
             } header: {
-                Text("trade.details")
+                SectionTitle("trade.details")
             } footer: {
                 if trade.isLate { Text("trade.late.footer") }
             }
             if !highlights.isEmpty {
-                Section("trade.notable") {
+                Section(themed: "trade.notable") {
                     ForEach(highlights, id: \.self) { key in
                         Label(LocalizedStringKey(key), systemImage: "checkmark.circle").font(.subheadline)
                     }
@@ -54,7 +54,7 @@ struct TradeDetailView: View {
                 Link(destination: trade.sourceURL) { Label("event.openSource", systemImage: "doc.richtext") }
                 if trade.confidence < Self.lowConfidence {
                     Label("trade.lowConfidence", systemImage: "exclamationmark.triangle")
-                        .font(.footnote).foregroundStyle(.orange)
+                        .font(.footnote).foregroundStyle(ConsigliereTheme.warning)
                 }
             } footer: {
                 if let observedAt = trade.observedAt {
@@ -62,7 +62,6 @@ struct TradeDetailView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("trade.title")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -71,16 +70,50 @@ struct TradeDetailView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
                 TradeTypePill(type: trade.type)
                 if trade.isOption { OptionsTag() }
-                Spacer()
-                AmountText(amount: trade.amount).font(.title3.bold().monospacedDigit())
             }
-            trade.type.headline(trade.displaySymbol).font(.largeTitle.bold())
+            trade.type.headline(trade.displaySymbol)
+                .font(ConsigliereTheme.display(.largeTitle, weight: .medium))
+                .fixedSize(horizontal: false, vertical: true)
             Text(verbatim: trade.assetName).font(.subheadline).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                AmountText(amount: trade.amount)
+                    .font(.system(.largeTitle, weight: .bold).monospacedDigit())
+                    .foregroundStyle(trade.type.color)
+                Text("trade.amount").font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.top, 4)
+            lagBar
         }
+        .padding(.top, 4)
+    }
+
+    /// Days from trade to filing against the 45-day STOCK Act deadline.
+    private var lagBar: some View {
+        let days = trade.disclosureLagDays
+        let color = trade.isLate ? ConsigliereTheme.warning : ConsigliereTheme.accent
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("trade.lag").font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("study.days \(days)").font(.subheadline.weight(.semibold).monospacedDigit()).foregroundStyle(color)
+            }
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(ConsigliereTheme.raised)
+                    Capsule().fill(color).frame(width: max(8, proxy.size.width * min(Double(days) / 45, 1)))
+                }
+            }
+            .frame(height: 8)
+            .accessibilityHidden(true)
+        }
+        .padding(16)
+        .background(ConsigliereTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(ConsigliereTheme.hairline) }
+        .padding(.top, 6)
     }
 
     /// Facts that make this trade notable. Lateness is shown on the timing row; the backend's
@@ -114,18 +147,18 @@ struct TradeDetailView: View {
             Chart {
                 ForEach(points) { point in
                     LineMark(x: .value("Trading day", point.tradingDay), y: .value("Return", point.abnormalReturn))
-                        .foregroundStyle(ConsigliereTheme.gold).interpolationMethod(.catmullRom)
+                        .foregroundStyle(ConsigliereTheme.accent).interpolationMethod(.catmullRom)
                 }
-                RuleMark(x: .value("Transaction", 0)).foregroundStyle(.blue)
-                    .annotation(position: .top, alignment: .leading) { Text("study.transactionMarker").font(.caption2).foregroundStyle(.blue) }
+                RuleMark(x: .value("Transaction", 0)).foregroundStyle(.primary)
+                    .annotation(position: .top, alignment: .leading) { Text("study.transactionMarker").font(.caption2).foregroundStyle(.primary) }
                 RuleMark(x: .value("Disclosure", min(trade.disclosureLagDays, horizon)))
-                    .foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 2, dash: [4]))
-                    .annotation(position: .bottom, alignment: .leading) { Text("study.disclosureMarker").font(.caption2).foregroundStyle(.orange) }
+                    .foregroundStyle(ConsigliereTheme.warning).lineStyle(StrokeStyle(lineWidth: 2, dash: [4]))
+                    .annotation(position: .bottom, alignment: .leading) { Text("study.disclosureMarker").font(.caption2).foregroundStyle(ConsigliereTheme.warning) }
             }
             .chartYAxis { AxisMarks(format: Decimal.FormatStyle.Percent.percent.scale(1).precision(.fractionLength(0))) }
             .frame(height: 220)
         } header: {
-            Text("study.abnormalReturn")
+            SectionTitle("study.abnormalReturn")
         } footer: {
             Text("study.chartCaption")
         }

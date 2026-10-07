@@ -8,10 +8,10 @@ struct DeclaredInterestsView: View {
     @State private var error: String?
 
     var body: some View {
-        List {
+        ThemedList {
             if let member { Section { MemberHeaderRow(politician: member); Button(appState.isFollowing(member) ? "profile.unfollow" : "profile.follow") { appState.toggleFollow(member) } } }
             Section { Text("interests.method").font(.caption); if country == .uk { ParliamentAttribution() } }
-            if let error { Text(verbatim: error).foregroundStyle(.orange); Button("common.retry") { Task { await load() } } }
+            if let error { Text(verbatim: error).foregroundStyle(ConsigliereTheme.warning); Button("common.retry") { Task { await load() } } }
             if interests.isEmpty && error == nil { Text("interests.empty") }
             ForEach(interests) { interest in
                 Section {

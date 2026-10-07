@@ -25,7 +25,7 @@ struct EventDetailView: View {
             }
             .padding()
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(ConsigliereTheme.background)
         .navigationTitle("event.title")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -64,8 +64,8 @@ struct EventDetailView: View {
             HStack { Text("event.marketReaction").font(.headline); Spacer(); ChangeLabel(value: instrument.changePercent) }
             Chart(instrument.history) { point in
                 LineMark(x: .value("Time", point.timestamp), y: .value("Price", point.value))
-                    .foregroundStyle(ConsigliereTheme.gold).interpolationMethod(.catmullRom)
-                RuleMark(x: .value("Event", event.publishedAt)).foregroundStyle(.red).lineStyle(StrokeStyle(dash: [4]))
+                    .foregroundStyle(ConsigliereTheme.accent).interpolationMethod(.catmullRom)
+                RuleMark(x: .value("Event", event.publishedAt)).foregroundStyle(ConsigliereTheme.negative).lineStyle(StrokeStyle(dash: [4]))
             }
             .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) }
             .frame(height: 190)

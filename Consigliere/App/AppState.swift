@@ -31,7 +31,7 @@ final class AppState: ObservableObject {
     @Published var isLoading = false
     @Published var selectedRegion: MarketRegion = .northAmerica
 
-    @AppStorage("appearance") private var storedAppearance = Appearance.system.rawValue
+    @AppStorage("appearance") private var storedAppearance = Appearance.dark.rawValue
     @AppStorage("language") private var storedLanguage = AppLanguage.usEnglish.rawValue
     @AppStorage("watchlist") private var storedWatchlist = "SPY,QQQ,DIA"
     @AppStorage("homeCountries") private var storedHomeCountries = "us"
@@ -58,7 +58,7 @@ final class AppState: ObservableObject {
     }
 
     var appearance: Appearance {
-        get { Appearance(rawValue: storedAppearance) ?? .system }
+        get { Appearance(rawValue: storedAppearance) ?? .dark }
         set { storedAppearance = newValue.rawValue; objectWillChange.send() }
     }
 

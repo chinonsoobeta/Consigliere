@@ -5,7 +5,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            ThemedList {
                 Section {
                     VStack(spacing: 10) {
                         Wordmark()
@@ -14,18 +14,18 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
                 }
-                Section("settings.appearance") {
+                Section(themed: "settings.appearance") {
                     Picker("settings.theme", selection: Binding(get: { appState.appearance }, set: { appState.appearance = $0 })) {
                         ForEach(Appearance.allCases) { appearance in Text(appearance.label).tag(appearance) }
                     }
                     .pickerStyle(.segmented)
                 }
-                Section("settings.language") {
+                Section(themed: "settings.language") {
                     Picker("settings.language", selection: Binding(get: { appState.language }, set: { appState.language = $0 })) {
                         ForEach(AppLanguage.allCases) { language in Text(verbatim: language.label).tag(language) }
                     }
                 }
-                Section("countries.home") {
+                Section(themed: "countries.home") {
                     ForEach(Country.available) { country in
                         Toggle(country.label, isOn: Binding(get: { appState.homeCountries.contains(country) }, set: { enabled in
                             var countries = appState.homeCountries
@@ -34,7 +34,7 @@ struct SettingsView: View {
                         }))
                     }
                 }
-                Section("settings.data") {
+                Section(themed: "settings.data") {
                     NavigationLink { DataSourcesView() } label: {
                         HStack {
                             Text("settings.dataSources")
@@ -44,7 +44,7 @@ struct SettingsView: View {
                     }
                     NavigationLink("settings.methodology") { MethodologyView() }
                 }
-                Section("settings.legal") {
+                Section(themed: "settings.legal") {
                     NavigationLink("settings.disclaimer") { DisclaimerView() }
                     NavigationLink("settings.privacy") { PrivacyView() }
                 }
@@ -84,7 +84,7 @@ struct DataSourcesView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        List {
+        ThemedList {
             Section {
                 ForEach(appState.sourceHealth) { source in
                     VStack(alignment: .leading, spacing: 4) {
@@ -105,7 +105,7 @@ struct DataSourcesView: View {
                     .padding(.vertical, 2)
                 }
                 if appState.sourceHealth.isEmpty {
-                    Label("settings.sourcesUnavailable", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    Label("settings.sourcesUnavailable", systemImage: "exclamationmark.triangle").foregroundStyle(ConsigliereTheme.warning)
                 }
             } footer: {
                 Text("settings.dataSources.footer")
@@ -119,7 +119,7 @@ struct DataSourcesView: View {
 
 struct DisclaimerView: View {
     var body: some View {
-        List {
+        ThemedList {
             Section { Text("disclaimer.full") }
         }
         .navigationTitle("settings.disclaimer")
@@ -129,10 +129,10 @@ struct DisclaimerView: View {
 
 struct PrivacyView: View {
     var body: some View {
-        List {
-            Section("privacy.collected") { Text("privacy.collected.body") }
-            Section("privacy.device") { Text("privacy.device.body") }
-            Section("privacy.network") { Text("privacy.network.body") }
+        ThemedList {
+            Section(themed: "privacy.collected") { Text("privacy.collected.body") }
+            Section(themed: "privacy.device") { Text("privacy.device.body") }
+            Section(themed: "privacy.network") { Text("privacy.network.body") }
         }
         .navigationTitle("settings.privacy")
         .navigationBarTitleDisplayMode(.inline)
@@ -141,15 +141,15 @@ struct PrivacyView: View {
 
 struct MethodologyView: View {
     var body: some View {
-        List {
-            Section("home.notableWeek") { Text("home.notableMethod") }
-            Section("portfolio.method") { Text("portfolio.method.body") }
-            Section("methodology.disclosures") { Text("methodology.disclosures.body") }
-            Section("methodology.late") { Text("methodology.late.body") }
-            Section("methodology.highlights") { Text("methodology.highlights.body") }
-            Section("methodology.matching") { Text("methodology.matching.body") }
-            Section("interests.title") { Text("interests.method"); ParliamentAttribution() }
-            Section("methodology.prices") { Text("methodology.prices.body") }
+        ThemedList {
+            Section(themed: "home.notableWeek") { Text("home.notableMethod") }
+            Section(themed: "portfolio.method") { Text("portfolio.method.body") }
+            Section(themed: "methodology.disclosures") { Text("methodology.disclosures.body") }
+            Section(themed: "methodology.late") { Text("methodology.late.body") }
+            Section(themed: "methodology.highlights") { Text("methodology.highlights.body") }
+            Section(themed: "methodology.matching") { Text("methodology.matching.body") }
+            Section(themed: "interests.title") { Text("interests.method"); ParliamentAttribution() }
+            Section(themed: "methodology.prices") { Text("methodology.prices.body") }
         }
         .navigationTitle("settings.methodology")
         .navigationBarTitleDisplayMode(.inline)

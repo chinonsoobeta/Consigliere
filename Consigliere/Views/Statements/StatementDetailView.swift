@@ -12,7 +12,7 @@ struct StatementDetailView: View {
     @State private var showsFullText = false
 
     var body: some View {
-        List {
+        ThemedList {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(verbatim: statement.title).font(.title3.bold())
@@ -53,11 +53,11 @@ struct StatementDetailView: View {
                             Text(verbatim: "“\(tag.quote)”").font(.caption).foregroundStyle(.secondary).lineLimit(3)
                         }
                     }
-                } header: { Text("statement.tags") } footer: { Text("statement.tagsFooter") }
+                } header: { SectionTitle("statement.tags") } footer: { Text("statement.tagsFooter") }
             }
-            if let error { Text(verbatim: error).foregroundStyle(.orange) }
+            if let error { Text(verbatim: error).foregroundStyle(ConsigliereTheme.warning) }
             if let detail, !detail.holdings.isEmpty || !detail.trades.isEmpty {
-                Section("statement.holdings") {
+                Section(themed: "statement.holdings") {
                     ForEach(detail.holdings) { holding in
                         NavigationLink(value: StockRoute(symbol: holding.ticker)) {
                             LabeledContent {
@@ -72,7 +72,7 @@ struct StatementDetailView: View {
                         NavigationLink(value: trade) { TradeRow(trade: trade) }
                         Text(DisclosureDates.dayFormatter.string(from: trade.transactionDate) < String(statement.publishedAt.prefix(10)) ? "statement.before" : "statement.after").font(.caption).foregroundStyle(.secondary)
                     }
-                } header: { Text("statement.trades") } footer: { Text("statement.timing") }
+                } header: { SectionTitle("statement.trades") } footer: { Text("statement.timing") }
             }
         }
         .navigationTitle("statement.title")
@@ -80,10 +80,10 @@ struct StatementDetailView: View {
         .task { do { detail = try await appState.loadStatementDetail(id: statement.id) } catch { self.error = error.localizedDescription } }
         .sheet(item: $reportTag) { tag in
             NavigationStack {
-                Form {
+                ThemedList {
                     Text(verbatim: tag.quote)
                     TextField("statement.reason", text: $reason, axis: .vertical)
-                    if let reportError { Text(verbatim: reportError).foregroundStyle(.orange) }
+                    if let reportError { Text(verbatim: reportError).foregroundStyle(ConsigliereTheme.warning) }
                     if reported { Text("statement.reported") }
                     Button("statement.submit") {
                         Task {

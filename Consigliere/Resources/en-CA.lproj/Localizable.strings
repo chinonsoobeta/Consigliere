@@ -372,3 +372,11 @@
 "statement.kind.commodity" = "Commodity";
 "statement.kind.policy" = "Policy";
 "statement.tagsFooter" = "Each tag quotes the exact words it is based on. Report a tag if it’s wrong.";
+
+"home.hero.buying" = "Congress is *buying*.";
+"home.hero.selling" = "Congress is *selling*.";
+"home.hero.mixed" = "Buying and selling, *evenly*.";
+"home.hero.quiet" = "A *quiet* stretch.";
+"home.hero.week %lld %lld" = "^[%lld trade](inflect: true) from ^[%lld member](inflect: true), filed in the last seven days.";
+"home.hero.buys" = "Buys";
+"home.hero.sells" = "Sells";

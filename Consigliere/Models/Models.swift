@@ -29,10 +29,10 @@ enum DataFreshness: String, Codable {
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "freshness.\(rawValue)") }
     var color: Color {
         switch self {
-        case .live: .green
-        case .delayed: .orange
-        case .assessment: .blue
-        case .stale: .red
+        case .live: ConsigliereTheme.positive
+        case .delayed: ConsigliereTheme.warning
+        case .assessment: ConsigliereTheme.accent
+        case .stale: ConsigliereTheme.negative
         }
     }
 }
@@ -86,7 +86,7 @@ enum EventSource: String, Codable {
 enum ImpactLevel: String, Codable {
     case low, moderate, elevated
     var label: LocalizedStringKey { LocalizedStringKey(stringLiteral: "impact.\(rawValue)") }
-    var color: Color { self == .elevated ? .red : (self == .moderate ? .orange : .blue) }
+    var color: Color { self == .elevated ? ConsigliereTheme.negative : (self == .moderate ? ConsigliereTheme.warning : ConsigliereTheme.accent) }
     var icon: String { self == .elevated ? "exclamationmark.triangle.fill" : (self == .moderate ? "waveform.path.ecg" : "info.circle.fill") }
 }
 
@@ -141,8 +141,8 @@ enum SourceAvailability: String, Codable {
     var color: Color {
         switch self {
         case .available: ConsigliereTheme.positive
-        case .degraded: .orange
-        case .failed: .red
+        case .degraded: ConsigliereTheme.warning
+        case .failed: ConsigliereTheme.negative
         case .unconfigured: .secondary
         }
     }

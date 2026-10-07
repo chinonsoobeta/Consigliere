@@ -15,16 +15,16 @@ struct Wordmark: View {
     var body: some View {
         HStack(spacing: 10) {
             ZStack {
-                RoundedRectangle(cornerRadius: compact ? 9 : 12)
-                    .fill(ConsigliereTheme.navy.gradient)
+                RoundedRectangle(cornerRadius: compact ? 10 : 13, style: .continuous)
+                    .fill(ConsigliereTheme.accent)
                 Image(systemName: "building.columns.fill")
-                    .foregroundStyle(ConsigliereTheme.gold)
-                    .font(.system(size: compact ? 16 : 22, weight: .semibold))
+                    .foregroundStyle(ConsigliereTheme.onAccent)
+                    .font(.system(size: compact ? 16 : 21, weight: .semibold))
             }
             .frame(width: compact ? 34 : 44, height: compact ? 34 : 44)
             Text("Consigliere")
-                .font(compact ? .headline : .title2.weight(.bold))
-                .tracking(-0.4)
+                .font(ConsigliereTheme.display(compact ? .headline : .title2))
+                .tracking(-0.3)
         }
         .accessibilityElement(children: .combine)
     }
@@ -115,7 +115,7 @@ struct EventCard: View {
                 EventDateText(event: event).font(.caption).foregroundStyle(.secondary)
             }
             Text(event.title).font(.headline).foregroundStyle(.primary)
-            Text("event.whyItMatters").font(.caption.weight(.bold)).foregroundStyle(ConsigliereTheme.gold)
+            Text("event.whyItMatters").font(.caption.weight(.bold)).foregroundStyle(ConsigliereTheme.accent)
             Text(event.explanation).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
             if let reason = event.rankingReasons.first {
                 Label(reason, systemImage: "line.3.horizontal.decrease.circle")
@@ -126,7 +126,7 @@ struct EventCard: View {
                 Spacer()
                 HStack(spacing: 5) {
                     ForEach(event.mentionedSymbols.prefix(3), id: \.self) { symbol in
-                        Text(symbol).font(.caption2.monospaced().weight(.bold)).padding(.horizontal, 6).padding(.vertical, 4).background(.quaternary, in: Capsule())
+                        Text(symbol).font(.caption2.monospaced().weight(.bold)).padding(.horizontal, 6).padding(.vertical, 4).background(ConsigliereTheme.raised, in: Capsule())
                     }
                 }
             }
@@ -219,9 +219,9 @@ struct PendingFilingRow: View {
         Link(destination: filing.sourceURL) {
             HStack(spacing: 12) {
                 Image(systemName: "doc.badge.clock")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 40, height: 40)
-                    .background(Color.secondary.opacity(0.12), in: Circle())
+                    .foregroundStyle(ConsigliereTheme.accent)
+                    .frame(width: 44, height: 44)
+                    .background(ConsigliereTheme.accentSoft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(filing.representative).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                     Text("pending.filed \(DisclosureDates.day(filing.filedDate) ?? .now, format: DisclosureDates.style())")
@@ -252,7 +252,7 @@ struct PoliticianAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .overlay { Circle().stroke(.primary.opacity(0.08), lineWidth: 1) }
+        .overlay { Circle().stroke(ConsigliereTheme.hairline, lineWidth: 1) }
         .accessibilityHidden(true)
     }
 
@@ -261,8 +261,9 @@ struct PoliticianAvatar: View {
         let letters = [parts.first, parts.count > 1 ? parts.last : nil].compactMap { $0?.first }.map(String.init).joined()
         let tint = politician?.partyColor ?? .secondary
         return ZStack {
-            Circle().fill(tint.opacity(0.14))
-            Text(verbatim: letters).font(.system(size: size * 0.36, weight: .semibold)).foregroundStyle(tint)
+            Circle().fill(ConsigliereTheme.raised)
+            Circle().strokeBorder(tint.opacity(0.55), lineWidth: 1.5)
+            Text(verbatim: letters).font(.system(size: size * 0.36, weight: .medium, design: .serif)).foregroundStyle(.primary)
         }
     }
 }
@@ -270,14 +271,19 @@ struct PoliticianAvatar: View {
 struct TradeTypePill: View {
     let type: DisclosureTransactionType
     var body: some View {
-        Text(type.shortLabel)
-            .font(.caption2.weight(.heavy))
-            .textCase(.uppercase)
-            .tracking(0.4)
-            .foregroundStyle(type.color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(type.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        HStack(spacing: 3) {
+            Image(systemName: type == .purchase ? "arrow.up" : type == .sale ? "arrow.down" : "arrow.left.arrow.right")
+                .font(.system(size: 9, weight: .black))
+                .accessibilityHidden(true)
+            Text(type.shortLabel)
+                .font(.caption2.weight(.heavy))
+                .textCase(.uppercase)
+                .tracking(0.6)
+        }
+        .foregroundStyle(type.color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(type.color.opacity(0.15), in: Capsule())
     }
 }
 
@@ -325,7 +331,25 @@ struct ChamberTag: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Color.secondary.opacity(0.12), in: Capsule())
+            .background(ConsigliereTheme.raised, in: Capsule())
+    }
+}
+
+/// A rounded tile carrying a ticker, used where a row leads with what was traded.
+struct TickerTile: View {
+    let symbol: String
+    var size: CGFloat = 44
+
+    var body: some View {
+        Text(verbatim: symbol)
+            .font(.system(size: symbol.count > 4 ? 9 : 11, weight: .bold, design: .monospaced))
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .padding(.horizontal, 3)
+            .foregroundStyle(.primary)
+            .frame(width: size, height: size)
+            .background(ConsigliereTheme.raised, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .accessibilityHidden(true)
     }
 }
 
@@ -343,7 +367,9 @@ struct TradeRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if showsMember {
-                PoliticianAvatar(politician: politician, fallbackName: trade.representative, size: 40)
+                PoliticianAvatar(politician: politician, fallbackName: trade.representative, size: 44)
+            } else if !dynamicTypeSize.isAccessibilitySize {
+                TickerTile(symbol: trade.symbol.isEmpty ? String(trade.assetName.prefix(1)) : trade.symbol)
             }
             VStack(alignment: .leading, spacing: 4) {
                 let summaryLayout = dynamicTypeSize.isAccessibilitySize
@@ -372,7 +398,7 @@ struct TradeRow: View {
                 detailLine.font(.caption).foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(trade.type.label) + Text(verbatim: " · " + trade.displaySymbol + " · " + trade.amountRange + (showsMember ? " · " + (politician?.name ?? trade.representative) : "")) + Text(verbatim: " · ") + detailLine)
@@ -382,7 +408,7 @@ struct TradeRow: View {
     private var detailLine: Text {
         var line = Text("trade.dates \(trade.transactionDate, format: DisclosureDates.compact(trade.transactionDate)) \(trade.filedDate, format: DisclosureDates.compact(trade.filedDate))")
         if trade.owner != .member { line = line + Text(verbatim: " · ") + Text(trade.owner.label) }
-        if trade.isLate { line = line + Text(verbatim: " · ") + Text("trade.late").foregroundStyle(.orange) }
+        if trade.isLate { line = line + Text(verbatim: " · ") + Text("trade.late").foregroundStyle(ConsigliereTheme.warning) }
         return line
     }
 }
@@ -418,11 +444,11 @@ struct FilingRow: View {
                 }
                 summary.font(.subheadline).foregroundStyle(.primary).lineLimit(2)
                 if emphasizesLag {
-                    Text("filing.lateBy \(filing.maxLagDays)").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                    Text("filing.lateBy \(filing.maxLagDays)").font(.caption.weight(.semibold)).foregroundStyle(ConsigliereTheme.warning)
                 }
             }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }

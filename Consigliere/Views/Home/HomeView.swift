@@ -18,12 +18,12 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            ThemedList {
                 if appState.disclosureSourcesDelayed {
-                    NavigationLink { DataSourcesView() } label: { Label("home.delayed", systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange) }
+                    NavigationLink { DataSourcesView() } label: { Label("home.delayed", systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(ConsigliereTheme.warning) }
                 }
                 if let error = appState.latestLoadError ?? appState.disclosureLoadError {
-                    Text(verbatim: error).foregroundStyle(.orange)
+                    Text(verbatim: error).foregroundStyle(ConsigliereTheme.warning)
                 }
                 if appState.homeCountries.contains(.us) {
                     summarySection
@@ -32,7 +32,7 @@ struct HomeView: View {
                     flowSections
                     widelyHeldSection
                     pulseSection
-                    Section("home.newFilings") {
+                    Section(themed: "home.newFilings") {
                         ForEach(appState.latestFilings.filter { !Set(followedFilings.map(\.id)).contains($0.id) }.prefix(5)) { filing in
                             NavigationLink(value: filing) { FilingRow(filing: filing) }
                         }
@@ -45,7 +45,7 @@ struct HomeView: View {
                                 NavigationLink(value: filing) { FilingRow(filing: filing, emphasizesLag: true) }
                             }
                             Button("home.all.late") { open(TradeFilter(lateOnly: true)) }
-                        } header: { Text("home.late") } footer: { Text("home.late.footer") }
+                        } header: { SectionTitle("home.late") } footer: { Text("home.late.footer") }
                     }
                     mostActiveSection
                     if !relevantStatements.isEmpty {
@@ -53,7 +53,7 @@ struct HomeView: View {
                             ForEach(relevantStatements.prefix(3)) { statement in
                                 NavigationLink(value: statement) { StatementRow(statement: statement) }
                             }
-                        } header: { Text("statement.home") } footer: { Text("statement.homeFooter") }
+                        } header: { SectionTitle("statement.home") } footer: { Text("statement.homeFooter") }
                     }
                 }
                 ForEach(Country.available.filter { $0 != .us && appState.homeCountries.contains($0) }) { country in
@@ -61,8 +61,9 @@ struct HomeView: View {
                 }
                 Section { NavigationLink("home.aboutData") { MethodologyView() } } footer: { Text("home.footer") }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("home.title")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .principal) { Wordmark(compact: true) } }
             .refreshable { await appState.load(force: true) }
             .consigliereDestinations()
             .task(id: appState.latestTrades) { chooseNotable() }
@@ -71,8 +72,13 @@ struct HomeView: View {
 
     // MARK: Sections
 
+    private var weekTrades: [DisclosureTrade] { appState.latestTrades.filter { TradeFilter(filedWithinDays: 7).matches($0) } }
+
     @ViewBuilder private var summarySection: some View {
-        Section(appState.previousVisit == nil ? "home.thisWeek" : "home.sinceVisit") {
+        Section { HomeHero(trades: weekTrades) }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+        Section {
             if summary.filings == 0 && appState.previousVisit != nil {
                 Label("home.caughtUp", systemImage: "checkmark.circle").foregroundStyle(.secondary)
             } else {
@@ -94,7 +100,7 @@ struct HomeView: View {
     }
 
     private var followingSection: some View {
-        Section("home.following") {
+        Section(themed: "home.following") {
             if appState.followedIDs.isEmpty {
                 Text("home.followPrompt").foregroundStyle(.secondary)
                 ForEach(suggestedMembers) { member in
@@ -126,7 +132,7 @@ struct HomeView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
-        } header: { Text("home.notableWeek") }
+        } header: { SectionTitle("home.notableWeek") }
     }
 
     @ViewBuilder private var flowSections: some View {
@@ -135,10 +141,10 @@ struct HomeView: View {
         if !bought.isEmpty {
             Section {
                 ForEach(bought) { FlowRow(flow: $0, emphasis: .purchase) }
-            } header: { Text("home.flow.bought") } footer: { Text("home.flow.footer") }
+            } header: { SectionTitle("home.flow.bought") } footer: { Text("home.flow.footer") }
         }
         if !sold.isEmpty {
-            Section("home.flow.sold") {
+            Section(themed: "home.flow.sold") {
                 ForEach(sold) { FlowRow(flow: $0, emphasis: .sale) }
             }
         }
@@ -158,7 +164,7 @@ struct HomeView: View {
                     }
                 }
                 NavigationLink("portfolio.congress") { ReferencePortfolioView(portfolioID: "congress") }
-            } header: { Text("home.widelyHeld") } footer: { Text("home.widelyHeld.footer") }
+            } header: { SectionTitle("home.widelyHeld") } footer: { Text("home.widelyHeld.footer") }
         }
     }
 
@@ -169,11 +175,11 @@ struct HomeView: View {
                 Label("home.busier", systemImage: "arrow.up.right").font(.caption).foregroundStyle(ConsigliereTheme.accent)
             }
             Button("home.all.recent") { open(TradeFilter(filedWithinDays: 84)) }
-        } header: { Text("home.pulse") }
+        } header: { SectionTitle("home.pulse") }
     }
 
     private var mostActiveSection: some View {
-        Section("home.mostActive") {
+        Section(themed: "home.mostActive") {
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 14) {
                     ForEach(appState.mostActive.prefix(8), id: \.politician.id) { entry in
@@ -233,15 +239,14 @@ private struct SummaryTile: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(count, format: .number).font(.title2.bold().monospacedDigit())
+            VStack(alignment: .leading, spacing: 4) {
+                Text(count, format: .number).font(.title.bold().monospacedDigit())
                     .foregroundStyle(count == 0 ? Color.secondary : ConsigliereTheme.accent)
-                Text(label).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                Text(label).font(.caption.weight(.medium)).foregroundStyle(.secondary).multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(Color(.secondarySystemGroupedBackground).opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(.primary.opacity(0.08)) }
+            .padding(14)
+            .background(ConsigliereTheme.raised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -311,5 +316,72 @@ struct StatementRow: View {
             }
             .font(.caption)
         }
+    }
+}
+
+/// The editorial top of Home: today's date, a one-line read of the window, and the buy/sell split.
+private struct HomeHero: View {
+    let trades: [DisclosureTrade]
+    @ScaledMetric(relativeTo: .largeTitle) private var bigNumber: CGFloat = 52
+
+    private var buys: Int { trades.filter { $0.type == .purchase }.count }
+    private var sells: Int { trades.filter { $0.type == .sale }.count }
+    private var members: Int { Set(trades.map { $0.politicianID ?? $0.representative }).count }
+
+    private var headline: LocalizedStringKey {
+        if buys + sells == 0 { return "home.hero.quiet" }
+        if Double(buys) >= Double(sells) * 1.5 { return "home.hero.buying" }
+        if Double(sells) >= Double(buys) * 1.5 { return "home.hero.selling" }
+        return "home.hero.mixed"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 10) {
+                Eyebrow(text: Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide)))
+                Text(headline)
+                    .font(ConsigliereTheme.display(.largeTitle, weight: .medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                if !trades.isEmpty {
+                    Text("home.hero.week \(trades.count) \(members)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if buys + sells > 0 {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .firstTextBaseline) {
+                        figure(buys, "home.hero.buys", "arrow.up", ConsigliereTheme.positive)
+                        Spacer()
+                        figure(sells, "home.hero.sells", "arrow.down", ConsigliereTheme.negative, trailing: true)
+                    }
+                    GeometryReader { proxy in
+                        let share = CGFloat(buys) / CGFloat(max(buys + sells, 1))
+                        HStack(spacing: 4) {
+                            Capsule().fill(ConsigliereTheme.positive).frame(width: max((proxy.size.width - 4) * share, buys > 0 ? 8 : 0))
+                            Capsule().fill(ConsigliereTheme.negative)
+                        }
+                    }
+                    .frame(height: 10)
+                    .accessibilityHidden(true)
+                }
+                .padding(20)
+                .background(ConsigliereTheme.surface, in: RoundedRectangle(cornerRadius: ConsigliereTheme.cardRadius, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: ConsigliereTheme.cardRadius, style: .continuous).stroke(ConsigliereTheme.hairline) }
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private func figure(_ value: Int, _ label: LocalizedStringKey, _ icon: String, _ color: Color, trailing: Bool = false) -> some View {
+        VStack(alignment: trailing ? .trailing : .leading, spacing: 2) {
+            Label { Text(label).foregroundStyle(.secondary) } icon: { Image(systemName: icon).foregroundStyle(color) }
+                .font(.subheadline.weight(.medium))
+            Text(value, format: .number)
+                .font(.system(size: bigNumber, weight: .bold).monospacedDigit())
+                .foregroundStyle(color)
+        }
+        .accessibilityElement(children: .combine)
     }
 }

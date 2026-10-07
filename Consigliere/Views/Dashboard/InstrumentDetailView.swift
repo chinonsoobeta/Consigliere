@@ -18,7 +18,7 @@ struct InstrumentDetailView: View {
                     Spacer()
                     Button { appState.toggleWatchlist(instrument) } label: {
                         Image(systemName: appState.watchlist.contains(instrument.symbol) ? "star.fill" : "star")
-                            .font(.title3).foregroundStyle(ConsigliereTheme.gold)
+                            .font(.title3).foregroundStyle(ConsigliereTheme.accent)
                     }
                     .accessibilityLabel("watchlist.toggle")
                 }
@@ -39,15 +39,15 @@ struct InstrumentDetailView: View {
                 }
             }.padding()
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(ConsigliereTheme.background)
         .navigationTitle(instrument.symbol)
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private var chart: some View {
         Chart(instrument.history) { point in
-            LineMark(x: .value("Time", point.timestamp), y: .value("Value", point.value)).foregroundStyle(ConsigliereTheme.gold).interpolationMethod(.catmullRom)
-            AreaMark(x: .value("Time", point.timestamp), y: .value("Value", point.value)).foregroundStyle(.linearGradient(colors: [ConsigliereTheme.gold.opacity(0.2), .clear], startPoint: .top, endPoint: .bottom)).interpolationMethod(.catmullRom)
+            LineMark(x: .value("Time", point.timestamp), y: .value("Value", point.value)).foregroundStyle(ConsigliereTheme.accent).interpolationMethod(.catmullRom)
+            AreaMark(x: .value("Time", point.timestamp), y: .value("Value", point.value)).foregroundStyle(.linearGradient(colors: [ConsigliereTheme.accent.opacity(0.2), .clear], startPoint: .top, endPoint: .bottom)).interpolationMethod(.catmullRom)
         }
         .frame(height: 240).consigliereCard()
     }
