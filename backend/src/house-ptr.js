@@ -3,7 +3,7 @@
 // for later. The table's column positions shift between reports, so they are read from each page's
 // header row rather than hard-coded.
 import { getDocumentProxy } from "unpdf";
-import { dateOnly, stableUUID } from "./normalization.js";
+import { dateOnly, reportedTransactionDate, stableUUID } from "./normalization.js";
 
 export const HOUSE_PTR_PARSER_VERSION = 1;
 
@@ -267,7 +267,12 @@ export function housePTRDisclosures(parsed, filing) {
   // Rows keep their position in the report so two identical lines stay two records.
   return parsed.transactions
     .map((transaction, index) => ({ transaction, index }))
-    .filter(({ transaction }) => !transaction.problem)
+    .map(({ transaction, index }) => {
+      const transactionDate = reportedTransactionDate(transaction.transactionDate, filing.disclosureDate);
+      return { transaction: transactionDate === transaction.transactionDate ? transaction
+        : { ...transaction, transactionDate, filerTransactionDate: transaction.transactionDate }, index };
+    })
+    .filter(({ transaction }) => !transaction.problem && transaction.transactionDate)
     .map(({ transaction, index }) => ({
       id: stableUUID(`house-ptr|${filing.docID}|${transaction.rowID ?? index}`),
       provider: "house-ptr",

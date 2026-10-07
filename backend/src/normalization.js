@@ -87,3 +87,14 @@ export function bulkInsertStatements(db, table, columns, rows, conflict = "") {
   flush();
   return statements;
 }
+
+// A trade cannot postdate the report that discloses it. Filers early in a year sometimes type the
+// new year on a December trade ("12/26/2026" on a February 2026 report); when the prior year
+// lands inside the 45-day filing window, that is the date used and the original stays in the raw
+// record. Any other future date is unusable and the row is skipped.
+export function reportedTransactionDate(transactionDate, reportDate) {
+  if (!transactionDate || !reportDate || transactionDate <= reportDate) return transactionDate;
+  const prior = `${Number(transactionDate.slice(0, 4)) - 1}${transactionDate.slice(4)}`;
+  const lag = (Date.parse(reportDate) - Date.parse(prior)) / 86_400_000;
+  return validDateOnly(prior) && lag >= 0 && lag <= 45 ? prior : null;
+}

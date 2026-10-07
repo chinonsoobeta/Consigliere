@@ -1,5 +1,5 @@
 import {
-  dateOnly, normalizeOwner, normalizeTransaction, stableUUID
+  dateOnly, normalizeOwner, normalizeTransaction, reportedTransactionDate, stableUUID
 } from "./normalization.js";
 import { strFromU8, unzipSync } from "fflate";
 
@@ -131,7 +131,8 @@ export function normalizeApifyDataset(payload) {
     const transactions = Array.isArray(row.transactions) ? row.transactions : [];
     for (const transaction of transactions) {
       const ticker = String(transaction.ticker ?? "").trim().toUpperCase();
-      const transactionDate = dateOnly(transaction.transactionDate);
+      const filerDate = dateOnly(transaction.transactionDate);
+      const transactionDate = reportedTransactionDate(filerDate, reportDate);
       const transactionType = normalizeTransaction(transaction.transactionType);
       const owner = normalizeOwner(transaction.owner);
       if (
@@ -141,7 +142,8 @@ export function normalizeApifyDataset(payload) {
       const amountRange = String(transaction.amount ?? "Not reported").slice(0, 100);
       const assetName = String(transaction.assetName ?? ticker).trim().slice(0, 500);
       const identity = [
-        filingID, ticker, transactionDate, transactionType, amountRange, owner, assetName
+        // The filer's date, so a corrected year updates the stored row instead of adding one.
+        filingID, ticker, filerDate, transactionType, amountRange, owner, assetName
       ].join("|");
       records.push({
         id: stableUUID(`apify-trade|${identity}`),
@@ -162,7 +164,8 @@ export function normalizeApifyDataset(payload) {
         matchConfidence: null,
         sourceURL,
         confidence: 0.95,
-        rawJSON: JSON.stringify({ filing: row, transaction })
+        // The filing's own transaction list is stored once with the filing, not on every row.
+        rawJSON: JSON.stringify({ filing: { ...row, transactions: undefined }, transaction })
       });
     }
   }

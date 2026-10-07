@@ -148,3 +148,11 @@ test('annual parsing stops at Schedule B even when no closing footnote separates
  // A page's closing notes must not run into the last asset and hide its type code.
  assert.ok(report.assets.every(asset=>asset.assetType && !/Investment Vehicle details|asset type abbreviations/.test(asset.name)));
 });
+
+import { reportedTransactionDate } from '../src/normalization.js';
+test('a trade dated after its report takes the prior year only inside the filing window',()=>{
+ assert.equal(reportedTransactionDate('2026-01-15','2026-02-09'),'2026-01-15');
+ assert.equal(reportedTransactionDate('2026-12-26','2026-02-09'),'2025-12-26');
+ assert.equal(reportedTransactionDate('2026-06-01','2026-02-09'),null);
+ assert.equal(reportedTransactionDate(null,'2026-02-09'),null);
+});

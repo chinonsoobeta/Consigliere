@@ -112,6 +112,9 @@ test("normalizes the configured Apify actor's nested PTR schema", () => {
   assert.equal(result.disclosures[0].transactionType, "sale");
   assert.equal(result.disclosures[0].owner, "member");
   assert.equal(result.disclosures[0].reportDate, "2026-07-16");
+  const raw = JSON.parse(result.disclosures[0].rawJSON);
+  assert.equal(raw.transaction.ticker, "WAB");
+  assert.equal(raw.filing.transactions, undefined);
 });
 
 test("constrains Apify actor inputs to supported values", () => {
